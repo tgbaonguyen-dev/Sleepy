@@ -265,7 +265,7 @@ function viewSetup() {
         <div><div class="label">Muốn làm gì</div><div class="acts">${acts}</div></div>
         <div><div class="label">Lúc nào</div>
           <div class="seg wide" data-morph-keep="style"><button class="${mode === 'countdown' ? 'on' : ''}" data-mode="countdown">Sau bao lâu</button><button class="${mode === 'at' ? 'on' : ''}" data-mode="at">Đúng giờ</button><button class="${mode === 'cond' ? 'on' : ''}" data-mode="cond">Khi xong việc</button></div></div>
-        ${mode === 'cond' ? condCard() : `<p class="note">${mode === 'countdown' ? 'Kéo chấm tròn quanh vòng để chỉnh phút, vòng qua đỉnh là thêm một giờ. Hoặc lăn chuột lên các con số.' : 'Kéo chấm tròn tới giờ bạn muốn. Nếu giờ đó đã qua, Sleepy hiểu là ngày mai.'}</p>`}
+        ${mode === 'cond' ? condCard() : `<p class="note">${mode === 'countdown' ? 'Nắm vòng tròn rồi xoay để chỉnh, qua đỉnh là thêm một giờ. Hoặc lăn chuột lên các con số.' : 'Nắm vòng tròn rồi xoay tới giờ bạn muốn. Nếu giờ đó đã qua, Sleepy hiểu là ngày mai.'}</p>`}
         ${quick.length ? `<div class="quick-w" style="--qn:${quick.length}"><div class="label">Hay dùng</div><div class="quick clip-fit">${quick.map((p) => `<button class="q" data-run="${p.id}" title="${esc(S.describe(p.action, p.trigger))}">
           <span class="qi">${Icons[p.action]}</span><span class="qt"><b>${esc(p.name)}</b><small>${esc(quickDesc(p))}</small></span><span class="qa">${Icons.play}</span></button>`).join('')}</div></div>` : ''}
       </div>
@@ -320,95 +320,220 @@ function updateSummary() { const el = $('#summary'); morph(el, summaryHtml()); }
 
 // Vòng quay thiết lập
 const DC = 165, DR = 138;
-function renderDial() {
-  const svg = $('#dial-svg'), center = $('#dial-center'); if (!svg) return;
-  const d = draft, s = snap?.sensors || {};
-  let body = '', cHtml = '';
+// Vòng "Sau bao lâu" / "Đúng giờ" là một núm vặn: khung SVG (vạch, rãnh, cung, núm) chỉ dựng một lần mỗi kiểu,
+// sau đó mỗi khung hình (requestAnimationFrame) chỉ đổi thuộc tính `d` của cung và `transform` của núm.
+// dv.vis là giá trị đang HIỂN THỊ (phút, số thực): lúc kéo nó bám theo con trỏ liên tục, lúc giá trị đổi từ
+// ngoài (chip, ô số, đổi kiểu) nó trượt từ giá trị cũ sang mới. Bản nháp (draft) luôn giữ giá trị đã làm tròn.
+const dv = { svg: null, key: '', vis: 0, target: 0, anim: null, raf: 0, drag: null };
+const CD_MAX = 23 * 60 + 59, DAY = 1440;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const mod = (v, n) => ((v % n) + n) % n;
+const nowMin = () => { const n = new Date(); return n.getHours() * 60 + n.getMinutes() + n.getSeconds() / 60; };
+const dialVal = (d = draft) => (d.type === 'countdown' ? d.countdown.h * 60 + d.countdown.m : d.at.h * 60 + d.at.m);
+function setDialVal(v) {
+  if (draft.type === 'countdown') draft.countdown = { h: Math.floor(v / 60), m: v % 60, s: 0 };
+  else draft.at = { h: Math.floor(v / 60), m: v % 60 };
+}
+function syncChips() {
+  const cur = draft.type === 'countdown' ? dialVal() : null, at = draft.type === 'at' ? `${pad(draft.at.h)}:${pad(draft.at.m)}` : null;
+  document.querySelectorAll('.stage [data-chip]').forEach((c) => c.classList.toggle('on', cur === +c.dataset.chip && !draft.countdown.s));
+  document.querySelectorAll('.stage [data-chip-at]').forEach((c) => c.classList.toggle('on', at === c.dataset.chipAt));
+}
+
+function dialSkeleton(type) {
+  const hand = `<g id="dial-hand">${celestial(0, 0, true, 1, 'handle-g cel-day')}${celestial(0, 0, false, 1, 'handle-g cel-night')}</g>`;
+  const arcEl = '<path id="dial-arc" class="arc" fill="none" stroke-width="16" stroke-linecap="round"/>';
+  const track = `<circle class="track" cx="${DC}" cy="${DC}" r="${DR}" fill="none" stroke-width="16"/>`;
+  if (type === 'countdown') {
+    return DEFS + ticks(DC, DR - 20, 60, 5) + track +
+      `<circle id="dial-hours" cx="${DC}" cy="${DC}" r="${DR + 14}" fill="none" stroke-width="2" stroke-dasharray="2 6" style="stroke:var(--moon);opacity:.35"/>` + arcEl + hand;
+  }
+  return DEFS + ticks(DC, DR - 20, 96, 4) + [[0, '0h'], [12, '12h']].map(([v, l]) => { const [x, y] = pt(DC, DR - 42, v / 24); return `<text class="tick-l" x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle">${l}</text>`; }).join('') +
+    track + arcEl + `<circle id="dial-now" r="4" style="fill:var(--ink-2)"/>` + hand;
+}
+const setA = (el, k, v) => { if (el && el.getAttribute(k) !== v) el.setAttribute(k, v); };
+// Vẽ một khung hình từ dv.vis: chỉ chạm các thuộc tính thật sự đổi
+function paintDial() {
+  const svg = dv.svg; if (!svg?.isConnected) return;
+  const hand = svg.querySelector('#dial-hand'), arcEl = svg.querySelector('#dial-arc');
+  let f0 = 0, f1, hf, day;
+  if (dv.key === 'countdown') {
+    const v = clamp(dv.vis, 0, CD_MAX);
+    let frac = (v % 60) / 60;
+    if (v > 0.01 && frac < 1e-4) frac = 1; // đúng tròn giờ: cả vòng
+    f1 = v < 0.01 ? 0 : frac; hf = frac % 1;
+    setA(svg.querySelector('#dial-hours'), 'display', v >= 60 ? 'inline' : 'none');
+    day = isDay(new Date(Date.now() + v * 60000).getHours());
+  } else {
+    const v = mod(dv.vis, DAY), nm = nowMin();
+    f0 = nm / DAY; f1 = v / DAY; if (f1 <= f0) f1 += 1; hf = v / DAY;
+    const [nx, ny] = pt(DC, DR, nm / DAY), now = svg.querySelector('#dial-now');
+    setA(now, 'cx', nx.toFixed(2)); setA(now, 'cy', ny.toFixed(2));
+    day = isDay(Math.floor(v / 60));
+  }
+  setA(arcEl, 'd', arc(DC, DR, f0, f1));
+  const [hx, hy] = pt(DC, DR, hf);
+  setA(hand, 'transform', `translate(${hx.toFixed(2)} ${hy.toFixed(2)})`);
+  setA(hand.querySelector('.cel-day'), 'display', day ? 'inline' : 'none');
+  setA(hand.querySelector('.cel-night'), 'display', day ? 'none' : 'inline');
+}
+const easeOut = (t) => 1 - (1 - t) ** 3;
+function dialFrame(ts) {
+  dv.raf = 0;
+  const a = dv.anim;
+  if (a) {
+    const t = clamp((ts - a.t0) / a.dur, 0, 1);
+    dv.vis = a.from + (a.to - a.from) * easeOut(t);
+    if (t >= 1) { dv.vis = dv.key === 'at' ? mod(a.to, DAY) : a.to; dv.anim = null; } else dv.raf = requestAnimationFrame(dialFrame);
+  }
+  paintDial();
+}
+const dialSchedule = () => { if (!dv.raf) dv.raf = requestAnimationFrame(dialFrame); };
+// Trượt từ dv.vis tới `to`. Kiểu "Đúng giờ" đi đường ngắn nhất quanh mặt 24 giờ.
+function dialAnimate(to, dur = 300) {
+  if (dv.key === 'at') to = dv.vis + (mod(to - dv.vis + DAY / 2, DAY) - DAY / 2);
+  if (reduceMotion.matches || dur <= 0 || Math.abs(to - dv.vis) < 1e-3) { dv.anim = null; dv.vis = dv.key === 'at' ? mod(to, DAY) : to; paintDial(); return; }
+  dv.anim = { from: dv.vis, to, t0: performance.now(), dur };
+  dialSchedule();
+}
+function dialCenter() {
+  const d = draft;
   if (d.type === 'countdown') {
-    const { h, m } = d.countdown, tot = h * 60 + m;
-    const f = tot === 0 ? 0 : (m === 0 ? 1 : m / 60), hf = tot === 0 ? 0 : m / 60;
-    const [hx, hy] = pt(DC, DR, hf);
-    body = ticks(DC, DR - 20, 60, 5) +
-      `<circle cx="${DC}" cy="${DC}" r="${DR}" fill="none" stroke-width="16" class="track"/>` +
-      (h > 0 ? `<circle cx="${DC}" cy="${DC}" r="${DR + 14}" fill="none" stroke-width="2" style="stroke:var(--moon);opacity:.35" stroke-dasharray="${Math.min(h, 12) > 0 ? '2 6' : ''}"/>` : '') +
-      `<path class="arc" d="${arc(DC, DR, 0, f)}" fill="none" stroke-width="16" stroke-linecap="round"/>` +
-      celestial(hx, hy, isDay(new Date(Date.now() + tot * 60000).getHours()));
-    const end = Date.now() + tot * 60000;
-    cHtml = `<div class="time-in v"><div class="tu"><input class="num" data-dial="countdown.h" data-max="23" value="${h}" maxlength="2" inputmode="numeric" aria-label="Giờ"><span>giờ</span></div>
+    const { h, m } = d.countdown, tot = h * 60 + m, end = Date.now() + tot * 60000;
+    return `<div class="time-in v"><div class="tu"><input class="num" data-dial="countdown.h" data-max="23" value="${h}" maxlength="2" inputmode="numeric" aria-label="Giờ"><span>giờ</span></div>
       <span class="sep">:</span><div class="tu"><input class="num" data-dial="countdown.m" data-max="59" value="${pad(m)}" maxlength="2" inputmode="numeric" aria-label="Phút"><span>phút</span></div></div>
       <div class="sub" id="dial-sub">${tot ? `${S.ACTIONS[d.action].label.toLowerCase()} lúc ${S.hhmm(end)} ${S.dayWord(end)}` : 'chưa chọn'}</div>`;
-  } else if (d.type === 'at') {
-    const tm = d.at.h * 60 + d.at.m, now = new Date(), nm = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
-    let f0 = nm / 1440, f1 = tm / 1440; if (f1 <= f0) f1 += 1;
-    const [hx, hy] = pt(DC, DR, tm / 1440), [nx, ny] = pt(DC, DR, nm / 1440);
-    body = ticks(DC, DR - 20, 96, 4) + [[0, '0h'], [12, '12h']].map(([v, l]) => { const [x, y] = pt(DC, DR - 42, v / 24); return `<text class="tick-l" x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle">${l}</text>`; }).join('') +
-      `<circle cx="${DC}" cy="${DC}" r="${DR}" fill="none" stroke-width="16" class="track"/>` +
-      `<path class="arc" d="${arc(DC, DR, f0, f1)}" fill="none" stroke-width="16" stroke-linecap="round"/>` +
-      `<circle cx="${nx}" cy="${ny}" r="4" style="fill:var(--ink-2)"/>` + celestial(hx, hy, isDay(d.at.h));
-    const end = S.atDeadline(trigger().time);
-    cHtml = `<div class="time-in v"><input class="num" data-dial="at.h" data-max="23" value="${pad(d.at.h)}" maxlength="2" inputmode="numeric" aria-label="Giờ"><span class="sep">:</span>
-      <input class="num" data-dial="at.m" data-max="59" value="${pad(d.at.m)}" maxlength="2" inputmode="numeric" aria-label="Phút"></div>
-      <div class="sub" id="dial-sub">${S.dayWord(end)}, còn ${S.human(end - Date.now())}</div>`;
-  } else {
-    const c = d[d.type]; let v = 0, th = null, val = '—', sub = '', cap = '';
-    switch (d.type) {
-      case 'idle': cap = 'Bạn đã rời máy'; v = s.idle == null ? 0 : Math.min(1, s.idle / (c.minutes * 60)); val = s.idle == null ? '—' : S.clock(s.idle * 1000); sub = `cần đủ ${c.minutes} phút`; break;
-      case 'battery': cap = 'Pin'; v = s.battery ? s.battery.percent / 100 : 0; th = c.percent / 100; val = s.battery ? `${s.battery.percent}%` : '—'; sub = s.battery ? (s.battery.charging ? 'đang cắm sạc' : 'đang dùng pin') : 'không thấy pin'; break;
-      case 'net': { cap = 'Tốc độ mạng'; const top = Math.max(c.kbps * 4, ...spark.net, 1); v = Math.min(1, (s.net || 0) / top); th = c.kbps / top; val = S.kb(s.net); sub = `chờ xuống dưới ${c.kbps} KB/s`; break; }
-      case 'cpu': cap = 'Máy đang dùng'; v = (s.cpu || 0) / 100; th = c.percent / 100; val = s.cpu == null ? '—' : `${Math.round(s.cpu)}%`; sub = `chờ xuống dưới ${c.percent}%`; break;
-      case 'process': cap = 'Ứng dụng'; v = procRunning ? 1 : 0; val = !c.name.trim() ? '—' : procRunning == null ? '…' : procRunning ? 'Đang mở' : 'Chưa mở'; sub = c.name.trim() ? `“${c.name.trim()}”` : 'chưa chọn app'; break;
-    }
-    const g0 = 0.625, span = 0.75;
-    body = `<path d="${arc(DC, DR, g0, g0 + span)}" fill="none" stroke-width="16" stroke-linecap="round" class="track"/>` +
-      `<path class="arc" d="${arc(DC, DR, g0, g0 + span * Math.max(0.002, v))}" fill="none" stroke-width="16" stroke-linecap="round"/>`;
-    if (th != null) { const [x0, y0] = pt(DC, DR - 16, g0 + span * th), [x1, y1] = pt(DC, DR + 16, g0 + span * th); body += `<line class="th" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}"/>`; }
-    cHtml = `<div class="cap">${cap}</div><div class="live num${val.length > 7 ? ' long' : ''}">${esc(val)}</div><div class="sub">${esc(sub)}</div>`;
-    const sp = $('#spark');
-    if (sp) {
-      const data = d.type === 'net' ? spark.net : d.type === 'cpu' ? spark.cpu : [];
-      if (data.length > 1) {
-        const top = d.type === 'cpu' ? 100 : Math.max(c.kbps * 4, ...data, 1), thr = d.type === 'cpu' ? c.percent : c.kbps;
-        const pts = data.map((y, i) => `${(i / 59) * 280},${46 - (y / top) * 42}`).join(' ');
-        const ty = 46 - (thr / top) * 42;
-        morph(sp, `${DEFS}<line x1="0" x2="280" y1="${ty}" y2="${ty}" class="th" style="stroke-width:1;stroke-dasharray:3 4"/><polyline points="${pts}" fill="none" stroke="url(#gMoon)" stroke-width="2" stroke-linejoin="round"/>`);
-      } else morph(sp, '');
-    }
   }
-  // morph giữ nguyên ô giờ/phút đang gõ và núm kéo (transition hover không bị cắt ngang)
+  const end = S.atDeadline(trigger().time);
+  return `<div class="time-in v"><input class="num" data-dial="at.h" data-max="23" value="${pad(d.at.h)}" maxlength="2" inputmode="numeric" aria-label="Giờ"><span class="sep">:</span>
+    <input class="num" data-dial="at.m" data-max="59" value="${pad(d.at.m)}" maxlength="2" inputmode="numeric" aria-label="Phút"></div>
+    <div class="sub" id="dial-sub">${S.dayWord(end)}, còn ${S.human(end - Date.now())}</div>`;
+}
+// dur: thời gian trượt khi giá trị đổi (0 = nhảy ngay)
+function renderDial({ dur = 300 } = {}) {
+  const svg = $('#dial-svg'), center = $('#dial-center'); if (!svg) return;
+  const d = draft, s = snap?.sensors || {};
+  if (d.type === 'countdown' || d.type === 'at') {
+    const target = dialVal();
+    if (svg !== dv.svg || svg.dataset.k !== d.type) {
+      // Kiểu mới (hoặc vừa quay lại màn này): dựng khung, cung mọc lên từ 0 / từ "bây giờ"
+      morph(svg, dialSkeleton(d.type));
+      svg.dataset.k = d.type; dv.svg = svg; dv.key = d.type; dv.anim = null; dv.drag = null;
+      dv.vis = d.type === 'at' ? nowMin() : 0;
+      dv.target = target;
+      document.documentElement.classList.remove('dragging-dial');
+      const from = dv.vis, to = d.type === 'at' ? from + mod(target - from, DAY) : target; // "Đúng giờ" luôn quét xuôi từ bây giờ
+      if (reduceMotion.matches) dv.vis = d.type === 'at' ? mod(to, DAY) : to;
+      else { dv.anim = { from, to, t0: performance.now(), dur: 420 }; dialSchedule(); }
+    } else if (!dv.drag && target !== dv.target) { dv.target = target; dialAnimate(target, dur); }
+    paintDial();
+    morph(center, dialCenter());
+    return;
+  }
+  dv.svg = null; svg.dataset.k = 'cond';
+  let body = '', cHtml = '';
+  const c = d[d.type]; let v = 0, th = null, val = '—', sub = '', cap = '';
+  switch (d.type) {
+    case 'idle': cap = 'Bạn đã rời máy'; v = s.idle == null ? 0 : Math.min(1, s.idle / (c.minutes * 60)); val = s.idle == null ? '—' : S.clock(s.idle * 1000); sub = `cần đủ ${c.minutes} phút`; break;
+    case 'battery': cap = 'Pin'; v = s.battery ? s.battery.percent / 100 : 0; th = c.percent / 100; val = s.battery ? `${s.battery.percent}%` : '—'; sub = s.battery ? (s.battery.charging ? 'đang cắm sạc' : 'đang dùng pin') : 'không thấy pin'; break;
+    case 'net': { cap = 'Tốc độ mạng'; const top = Math.max(c.kbps * 4, ...spark.net, 1); v = Math.min(1, (s.net || 0) / top); th = c.kbps / top; val = S.kb(s.net); sub = `chờ xuống dưới ${c.kbps} KB/s`; break; }
+    case 'cpu': cap = 'Máy đang dùng'; v = (s.cpu || 0) / 100; th = c.percent / 100; val = s.cpu == null ? '—' : `${Math.round(s.cpu)}%`; sub = `chờ xuống dưới ${c.percent}%`; break;
+    case 'process': cap = 'Ứng dụng'; v = procRunning ? 1 : 0; val = !c.name.trim() ? '—' : procRunning == null ? '…' : procRunning ? 'Đang mở' : 'Chưa mở'; sub = c.name.trim() ? `“${c.name.trim()}”` : 'chưa chọn app'; break;
+  }
+  const g0 = 0.625, span = 0.75;
+  body = `<path d="${arc(DC, DR, g0, g0 + span)}" fill="none" stroke-width="16" stroke-linecap="round" class="track"/>` +
+    `<path class="arc" d="${arc(DC, DR, g0, g0 + span * Math.max(0.002, v))}" fill="none" stroke-width="16" stroke-linecap="round"/>`;
+  if (th != null) { const [x0, y0] = pt(DC, DR - 16, g0 + span * th), [x1, y1] = pt(DC, DR + 16, g0 + span * th); body += `<line class="th" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}"/>`; }
+  cHtml = `<div class="cap">${cap}</div><div class="live num${val.length > 7 ? ' long' : ''}">${esc(val)}</div><div class="sub">${esc(sub)}</div>`;
+  const sp = $('#spark');
+  if (sp) {
+    const data = d.type === 'net' ? spark.net : d.type === 'cpu' ? spark.cpu : [];
+    if (data.length > 1) {
+      const top = d.type === 'cpu' ? 100 : Math.max(c.kbps * 4, ...data, 1), thr = d.type === 'cpu' ? c.percent : c.kbps;
+      const pts = data.map((y, i) => `${(i / 59) * 280},${46 - (y / top) * 42}`).join(' ');
+      const ty = 46 - (thr / top) * 42;
+      morph(sp, `${DEFS}<line x1="0" x2="280" y1="${ty}" y2="${ty}" class="th" style="stroke-width:1;stroke-dasharray:3 4"/><polyline points="${pts}" fill="none" stroke="url(#gMoon)" stroke-width="2" stroke-linejoin="round"/>`);
+    } else morph(sp, '');
+  }
   morph(svg, DEFS + body);
   morph(center, cHtml);
 }
 
+// Kéo núm: nắm ở rãnh thì núm nhảy tới chỗ con trỏ rồi bám theo; nắm ở mặt (kể cả trên các con số) thì
+// sau khi con trỏ đi quá vài px mới tính là kéo và vòng xoay theo độ lệch góc như vặn một núm thật.
+// Ấn một cái lên con số (không kéo) vẫn đặt con trỏ vào ô để gõ.
+// U là góc tích luỹ tính bằng vòng: Sau bao lâu thì 1 vòng = 60 phút, qua đỉnh là sang giờ kế; Đúng giờ thì 1 vòng = 24 giờ.
+const RING = 0.62, DRAG_SLOP = 4;
+function dialStep(shift) { return dv.key === 'countdown' ? (shift ? 5 : 1) : 5; }
+function dragApply() {
+  const g = dv.drag;
+  let raw;
+  if (dv.key === 'countdown') {
+    // Lùi quá 0 thì dừng ở 0 (không quay vòng); dư tối đa một vòng để núm vẫn khớp con trỏ khi kéo trở lại
+    if (g.U < -1) g.U += 1; if (g.U > 25) g.U -= 1;
+    raw = clamp(g.U * 60, 0, CD_MAX);
+  } else raw = mod(g.U * DAY, DAY);
+  dv.vis = raw;
+  const st5 = dialStep(g.shift);
+  const v = dv.key === 'countdown' ? clamp(Math.round(raw / st5) * st5, 0, CD_MAX) : mod(Math.round(raw / st5) * st5, DAY);
+  if (v !== dialVal()) {
+    setDialVal(v); dv.target = v; saveDraft();
+    morph($('#dial-center'), dialCenter()); updateSummary(); syncChips();
+  }
+  dialSchedule();
+}
 function bindDial() {
   // #dial được giữ qua các lần vẽ lại nên chỉ gắn sự kiện một lần
   const dial = $('#dial'); if (!dial || dial._bound) return;
   dial._bound = true;
-  let prev = null;
-  const angle = (e) => { const r = dial.getBoundingClientRect(); const x = e.clientX - r.left - r.width / 2, y = e.clientY - r.top - r.height / 2; return { f: (Math.atan2(x, -y) / TAU + 1) % 1, dist: Math.hypot(x, y) / (r.width / 2) }; };
-  const apply = (f) => {
-    if (draft.type === 'countdown') {
-      let { h, m } = draft.countdown;
-      let nm = Math.round(f * 12) * 5 % 60;
-      if (prev != null) { if (prev > 0.75 && f < 0.25) h = Math.min(23, h + 1); else if (prev < 0.25 && f > 0.75) { if (h > 0) h--; else nm = 0; } }
-      if (h === 0 && prev != null && prev < 0.25 && f > 0.75) nm = 0;
-      draft.countdown = { h, m: nm, s: 0 };
-    } else if (draft.type === 'at') {
-      const t = Math.round(f * 288) * 5 % 1440;
-      draft.at = { h: Math.floor(t / 60), m: t % 60 };
-    }
-    prev = f; saveDraft(); renderDial(); updateSummary();
-    document.querySelectorAll('.stage .chip').forEach((c) => c.classList.remove('on'));
+  const geo = (e) => { const r = dial.getBoundingClientRect(); const x = e.clientX - r.left - r.width / 2, y = e.clientY - r.top - r.height / 2; return { f: (Math.atan2(x, -y) / TAU + 1) % 1, dist: Math.hypot(x, y) / (r.width / 2) }; };
+  const active = () => dial.classList.contains('drag') && (draft.type === 'countdown' || draft.type === 'at') && dv.svg;
+  let pend = null; // nhấn ở mặt vòng, chưa đủ xa để tính là kéo
+  const begin = (e, g, absolute) => {
+    let U;
+    const v = dv.vis; dv.anim = null;
+    if (dv.key === 'countdown') {
+      // Nắm ở rãnh: chọn số giờ sao cho giá trị mới gần giá trị cũ nhất
+      if (absolute) { U = g.f + Math.round(v / 60 - g.f); if (U < -0.02) U += 1; } else U = v / 60; // sát bên trái đỉnh khi < 1 giờ: hiểu là 0
+    } else U = absolute ? g.f : v / DAY;
+    dv.drag = { id: e.pointerId, last: g.f, U, shift: e.shiftKey };
+    document.documentElement.classList.add('dragging-dial');
+    dragApply();
+  };
+  const finish = () => {
+    if (!dv.drag) return;
+    dv.drag = null;
+    document.documentElement.classList.remove('dragging-dial');
+    dialAnimate(dv.target, 180); // thả tay: núm trượt nhẹ về đúng vạch đang hiện
   };
   dial.addEventListener('pointerdown', (e) => {
-    if (!dial.classList.contains('drag') || e.target.closest('input')) return;
-    const a = angle(e); if (a.dist < 0.62) return;
-    dial.setPointerCapture(e.pointerId); prev = null;
-    if (draft.type === 'countdown') prev = draft.countdown.m / 60;
-    apply(a.f);
-    const move = (ev) => apply(angle(ev).f);
-    const up = () => { dial.removeEventListener('pointermove', move); dial.removeEventListener('pointerup', up); };
-    dial.addEventListener('pointermove', move); dial.addEventListener('pointerup', up);
+    if (!active() || e.button !== 0 || dv.drag) return;
+    const g = geo(e); if (g.dist > 1.15) return;
+    const input = e.target.closest('input');
+    if (!input && g.dist >= RING) { e.preventDefault(); dial.focus({ preventScroll: true }); dial.setPointerCapture(e.pointerId); begin(e, g, true); return; }
+    pend = { id: e.pointerId, x: e.clientX, y: e.clientY, input };
+    if (!input) dial.setPointerCapture(e.pointerId);
   });
+  dial.addEventListener('pointermove', (e) => {
+    if (pend && e.pointerId === pend.id) {
+      if (Math.hypot(e.clientX - pend.x, e.clientY - pend.y) < DRAG_SLOP) return;
+      const { input, x, y } = pend; pend = null;
+      if (input) { input.blur(); getSelection()?.removeAllRanges(); }
+      if (!dial.hasPointerCapture(e.pointerId)) dial.setPointerCapture(e.pointerId);
+      dial.focus({ preventScroll: true });
+      begin(e, geo({ clientX: x, clientY: y }), false);
+    }
+    const g0 = dv.drag; if (!g0 || e.pointerId !== g0.id) return;
+    e.preventDefault();
+    const g = geo(e); g0.shift = e.shiftKey;
+    if (g.dist < 0.08) return; // sát tâm thì góc nhảy loạn: bỏ qua
+    let df = g.f - g0.last; if (df > 0.5) df -= 1; else if (df < -0.5) df += 1;
+    g0.last = g.f; g0.U += df;
+    dragApply();
+  });
+  const end = (e) => { if (pend && e.pointerId === pend.id) pend = null; if (dv.drag && e.pointerId === dv.drag.id) finish(); };
+  for (const t of ['pointerup', 'pointercancel', 'lostpointercapture']) dial.addEventListener(t, end);
+
 }
 
 // ---------- 01 Hẹn giờ: đang chạy ----------
@@ -644,7 +769,7 @@ function setDial(input, val) {
   return v;
 }
 const fmtDial = (input, v) => (input.dataset.dial === 'countdown.h' ? String(v) : pad(v));
-function dialChanged() { if (view === 'timer') { renderDial(); updateSummary(); document.querySelectorAll('.stage .chip').forEach((c) => c.classList.remove('on')); } }
+function dialChanged(opts) { if (view === 'timer') { renderDial(opts); updateSummary(); syncChips(); } }
 document.addEventListener('input', (e) => {
   const t = e.target;
   if (t.dataset.dial) { t.value = t.value.replace(/\D/g, '').slice(0, 2); setDial(t, parseInt(t.value, 10)); dialChanged(); }

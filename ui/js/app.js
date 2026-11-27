@@ -194,7 +194,7 @@ function applyTheme() {
 }
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 function sourceLabel(src) {
-  if (!src || src === 'manual') return 'Thủ công';
+  if (!src || src === 'manual') return 'Bắt đầu thủ công';
   const [k, id] = src.split(':');
   if (k === 'preset') return `Preset "${st.presets.find((p) => p.id === id)?.name || '—'}"`;
   if (k === 'schedule') { const s = st.schedules.find((x) => x.id === id); return `Lịch lặp ${s ? s.time : ''}`; }
@@ -234,10 +234,21 @@ function renderMini() {
   const el = $('#mini'); if (!el) return;
   const j = snap?.job;
   if (!j) {
+    const activeCh = Ambient.channels.filter((c) => c.active).length;
+    if (Ambient.playing && activeCh) {
+      el.hidden = false;
+      el.dataset.view = 'sounds';
+      el.className = 'mini';
+      morph(el, `<span class="mini-ico">${Icons.sound}</span><div class="v num">${activeCh} kênh</div><div class="d">Đang phát</div>`);
+      return;
+    }
+    el.hidden = true;
     el.className = 'mini idle';
-    morph(el, `<svg viewBox="0 0 46 46"><circle cx="23" cy="23" r="19" fill="none" stroke-width="3" class="track"/></svg><div class="v">Sleepy</div><div class="d">Không có hẹn giờ</div>`);
+    morph(el, '');
     return;
   }
+  el.hidden = false;
+  el.dataset.view = 'timer';
   el.className = 'mini';
   const f = j.phase === 'countdown' && j.totalMs ? Math.max(0, j.remaining / j.totalMs) : (j.satisfiedMs && j.need ? Math.min(1, j.satisfiedMs / j.need) : 0);
   const hot = j.phase === 'countdown' && j.remaining <= 60000;
@@ -264,10 +275,14 @@ function render() {
       { duration: 240, easing: 'cubic-bezier(.22, .9, .25, 1)' });
   }
 }
+function sysBannerHtml() {
+  if (!st?.settings?.dryRun) return '';
+  return `<div class="sys-banner" data-key="sys-banner" role="status"><span>Chế độ thử đang bật · Hành động sẽ không được thực hiện.</span><button class="sys-banner-btn" data-set="dryRun" data-val="false">Tắt chế độ thử</button></div>`;
+}
 function draw() {
   applyTheme(); renderRail();
   const main = $('#main');
-  const html = () => ({ timer: () => (snap?.job ? viewRunning() : viewSetup()), sounds: viewSounds, presets: viewPresets, schedules: viewSchedules, history: viewHistory, settings: viewSettings }[view]());
+  const html = () => sysBannerHtml() + ({ timer: () => (snap?.job ? viewRunning() : viewSetup()), sounds: viewSounds, presets: viewPresets, schedules: viewSchedules, history: viewHistory, settings: viewSettings }[view]());
   morph(main, html());
   for (let i = 0; i < 3 && fitPages(); i++) morph(main, html());
   if (view === 'timer' && !snap?.job) { renderDial(); bindDial(); }
@@ -342,7 +357,7 @@ function viewSetup() {
     chips = ['22:00', '22:30', '23:00', '23:30', '00:00', '00:30', '01:00'].map((v) => `<button class="chip ${cur === v ? 'on' : ''}" data-chip-at="${v}">${v}</button>`).join('');
   }
   return `<section class="view" data-key="v-setup">
-    <div class="head"><div><div class="eyebrow" id="greet">${greet()}</div><h1>Thiết lập hẹn giờ</h1></div></div>
+    <div class="head"><h1>Hẹn giờ</h1><span class="page-meta num" id="greet">${greet()}</span></div>
     <div class="setup">
       <div class="stage">
         <div class="dial ${isCond(d.type) ? '' : 'drag'}" id="dial" ${dialAttrs()}><svg viewBox="0 0 330 330" id="dial-svg" data-own></svg><div class="center" id="dial-center" data-own></div></div>
@@ -361,8 +376,8 @@ function viewSetup() {
     <div class="summary" id="summary">${summaryHtml()}</div>
     ${savingPreset
       ? `<input id="preset-name" class="inline-input" placeholder="Tên preset" maxlength="40"><button class="btn" data-key="preset-save" data-do="preset-save">Lưu</button><button class="btn ghost" data-key="preset-cancel" data-do="preset-cancel">Huỷ</button>`
-      : `<button class="btn ghost" data-key="preset-new" data-do="preset-new">${Icons.bookmark} Lưu làm preset</button>`}
-    <button class="btn primary big" data-key="start" data-do="start">${Icons.play} Bắt đầu hẹn giờ</button>
+      : `<button class="btn ghost" data-key="preset-new" data-do="preset-new">${Icons.bookmark} Lưu preset</button>`}
+    <button class="btn primary big" data-key="start" data-do="start">${Icons.play} Bắt đầu</button>
   </div>`;
 }
 
@@ -672,17 +687,20 @@ function viewRunning() {
   const j = snap.job;
   const a = S.ACTIONS[j.action].label;
   return `<section class="view running" data-key="v-running">
-    <div class="eyebrow rise">${greet()}</div>
-    <button class="awake-pill ${st.settings.keepAwake ? 'on' : ''}" data-set="keepAwake" data-val="${!st.settings.keepAwake}" title="${st.settings.keepAwake ? 'Màn hình và hệ thống được duy trì ở trạng thái hoạt động' : 'Cho phép màn hình tắt theo cài đặt hệ thống'}">
-      ${Icons.moon}<span>${st.settings.keepAwake ? 'Đang giữ hệ thống hoạt động' : 'Giữ hệ thống hoạt động'}</span>
+    <h1 class="sr-only clip-fit">Đang hẹn giờ</h1>
+    <button class="awake-meta ${st.settings.keepAwake ? 'on' : ''}" data-set="keepAwake" data-val="${!st.settings.keepAwake}" title="${st.settings.keepAwake ? 'Đang giữ màn hình và hệ thống thức — bấm để tắt' : 'Cho phép màn hình tắt theo hệ thống — bấm để bật giữ thức'}">
+      ${Icons.moon}<span>${st.settings.keepAwake ? 'Đang giữ máy thức' : 'Giữ máy thức: Tắt'}</span>
     </button>
     <div class="orb rise d1" id="orb" data-morph-keep="class"><svg viewBox="0 0 400 400" id="orb-svg" data-own></svg>
       <div class="center"><div class="icon">${Icons[j.action]}</div><div class="big num" id="big" data-own></div>
         <div class="what" id="what" data-own></div><div class="src">${esc(sourceLabel(j.source))}</div></div></div>
-    <div class="status-line" id="status-line" data-own></div>
-    <div class="controls rise d2" id="controls">${j.phase === 'countdown' ? `<div class="bgroup"><button data-post="5">+5 phút</button><button data-post="15">+15 phút</button><button data-post="60">+1 giờ</button></div>` : ''}<button class="btn danger-ghost hold-btn" data-key="now" data-hold-now title="Nhấn giữ 0.8 giây (hoặc Enter/Space) để thực hiện ngay">${esc(a)} ngay…</button><button class="btn primary" data-key="cancel" data-do="cancel">Huỷ hẹn giờ</button></div>
-    ${st.settings.dryRun ? '<div class="dry">Chế độ thử: chỉ hiển thị cảnh báo, không thực hiện hành động</div>' : ''}
-  </section>`;
+    ${j.phase === 'countdown' ? `<div class="controls rise d2" id="controls"><div class="bgroup"><button data-post="5">+5 phút</button><button data-post="15">+15 phút</button><button data-post="60">+1 giờ</button></div></div>` : '<div class="status-line" id="status-line" data-own></div>'}
+  </section>
+  <div class="bar bar-run" data-key="bar-run">
+    <div class="summary"></div>
+    <button class="btn danger-ghost hold-btn" data-key="now" data-hold-now title="Nhấn giữ 0.8 giây (hoặc Enter/Space) để thực hiện ngay">${esc(a)} ngay…</button>
+    <button class="btn primary big" data-key="cancel" data-do="cancel">Huỷ hẹn giờ</button>
+  </div>`;
 }
 
 const runDial = { svg: null, orb: null, deadline: 0, total: 0, raf: 0 };
@@ -736,7 +754,7 @@ function updateRunning() {
     if (big.dataset.mode !== 'c') { big.innerHTML = ''; big.dataset.t = ''; big.dataset.mode = 'c'; big.classList.remove('long'); }
     roll(big, S.clock(j.remaining));
     morph(what, j.fromCondition ? `<b>${esc(a)}</b> · điều kiện đã được đáp ứng` : `<b>${esc(a)}</b> lúc ${S.hhmm(j.deadline)} ${S.dayWord(j.deadline)}`);
-    line.textContent = `Còn ${S.human(j.remaining)}`;
+    if (line) line.textContent = '';
   } else {
     orb.classList.remove('hot', 'final');
     const w = watchValue(j), p = Math.max(0, Math.min(1, w.p));
@@ -749,7 +767,7 @@ function updateRunning() {
     big.classList.toggle('long', w.main.length > 8);
     morph(what, `<b>${esc(a)}</b> ${esc(S.triggerText(j.trigger))}`);
     const t = j.trigger;
-    line.textContent = (t.type === 'net' || t.type === 'cpu') ? (j.satisfiedMs ? `Đã duy trì ${S.clock(j.satisfiedMs)} / ${S.clock(j.need)}; thời gian chờ bổ sung ${st.settings.graceSeconds} giây` : (t.type === 'net' ? 'Đang theo dõi lưu lượng mạng' : 'Đang theo dõi mức sử dụng CPU'))
+    if (line) line.textContent = (t.type === 'net' || t.type === 'cpu') ? (j.satisfiedMs ? `Đã duy trì ${S.clock(j.satisfiedMs)} / ${S.clock(j.need)}; thời gian chờ bổ sung ${st.settings.graceSeconds} giây` : (t.type === 'net' ? 'Đang theo dõi lưu lượng mạng' : 'Đang theo dõi mức sử dụng CPU'))
       : t.type === 'process' ? 'Đang chờ tiến trình kết thúc' : t.type === 'battery' ? (snap.sensors.battery?.charging ? 'Thiết bị đang kết nối nguồn' : 'Thiết bị đang sử dụng pin') : 'Bộ đếm đặt lại khi phát hiện thao tác';
   }
 }
@@ -1068,7 +1086,7 @@ function viewPresets() {
       <button class="icon-btn" data-del-preset="${p.id}" title="Xoá">${Icons.trash}</button>
     </div>`).join('');
   return `<section class="view presets" data-key="v-presets">
-    <div class="head"><div><div class="eyebrow">Preset</div><h1>Preset đã lưu</h1></div></div>
+    <div class="head"><h1>Preset</h1><span class="page-meta num">${st.presets.length} preset</span></div>
     <div class="list fit" data-fit="presets">${rows || '<div class="empty">Chưa có preset. Tạo preset từ màn Hẹn giờ bằng nút "Lưu làm preset".</div>'}</div>
     <div class="foot"><p class="note">Nhấp đúp vào tên để đổi tên. Preset cũng có thể được khởi chạy từ menu khay hệ thống.</p>${pager('presets', pg)}</div>
   </section>`;
@@ -1091,7 +1109,7 @@ function viewSchedules() {
     </div>`;
   }).join('');
   return `<section class="view sched" data-key="v-schedules">
-    <div class="head"><div><div class="eyebrow">Lịch lặp</div><h1>Lịch tự động</h1></div></div>
+    <div class="head"><h1>Lịch lặp</h1><span class="page-meta num">${st.schedules.filter((s) => s.enabled).length} lịch đang bật</span></div>
     <div class="card adder">
       <div><div class="label">Giờ</div><div class="time-in"><input class="num" data-dial="sched.h" data-max="23" value="${pad(sched.h)}" maxlength="2"><span class="sep">:</span><input class="num" data-dial="sched.m" data-max="59" value="${pad(sched.m)}" maxlength="2"></div></div>
       <div><div class="label">Ngày</div><div class="days">${days(sched.days)}</div></div>
@@ -1115,7 +1133,7 @@ function viewHistory() {
       <td>${badge[h.result] || ''}${h.note && h.note !== 'Đã huỷ' ? `<div class="sub">${esc(h.note)}</div>` : ''}</td></tr>`;
   }).join('');
   return `<section class="view" data-key="v-history">
-    <div class="head"><div><div class="eyebrow">Nhật ký</div><h1>Lịch sử hoạt động</h1></div>
+    <div class="head"><h1>Nhật ký</h1>
       ${st.history.length ? '<button class="btn ghost small" data-do="hist-clear">Xoá nhật ký…</button>' : ''}</div>
     <div class="fit" data-fit="history">${rows ? `<table class="hist"><colgroup><col class="c-time"><col><col class="c-src"><col class="c-res"></colgroup>
       <thead><tr><th>Thời gian</th><th>Hành động</th><th class="c-src">Nguồn</th><th>Kết quả</th></tr></thead><tbody>${rows}</tbody></table>`
@@ -1135,7 +1153,7 @@ function viewSettings() {
   const capWord = { yes: ['Được', 'yes'], challenge: ['Cần mật khẩu', ''], no: ['Không', 'no'], na: ['Không hỗ trợ', 'no'], unknown: ['Chưa rõ', ''] };
   const g = (k) => `card group${setTab === k ? ' cur' : ''}" data-g="${k}`;
   return `<section class="view settings" data-key="v-settings">
-    <div class="head"><div><div class="eyebrow">Sleepy</div><h1>Cài đặt</h1></div>
+    <div class="head"><h1>Cài đặt</h1>
       <div class="seg stabs" data-morph-keep="style">${[['warn', 'Cảnh báo'], ['app', 'Ứng dụng'], ['adv', 'Nâng cao']]
         .map(([k, l]) => `<button class="${setTab === k ? 'on' : ''}" data-stab="${k}">${l}</button>`).join('')}</div></div>
     <div class="groups">

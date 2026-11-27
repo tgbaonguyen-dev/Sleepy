@@ -142,9 +142,25 @@ input:focus-visible, .time-in input:focus-visible, .sentence input:focus-visible
 .view { padding: var(--pad-y) var(--pad-x); flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .view:not(.running) > * { align-self: center; width: 100%; max-width: var(--content-max); }
 @keyframes in { from { opacity: 0; transform: translateY(6px); } }
-.head { flex: none; display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: clamp(10px, 2.6vh, 26px); }
-.eyebrow { font-size: 12px; color: var(--ink-3); }
-h1 { font-size: clamp(18px, 1.2vw + 1.3vh + 3px, 25px); font-weight: 600; letter-spacing: -.02em; line-height: 1.2; margin-top: 2px; }
+.head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: var(--s-4); }
+.page-meta { font-size: var(--fs-caption); color: var(--ink-3); white-space: nowrap; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.sys-banner { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 34px; padding: 6px var(--pad-x);
+  background: color-mix(in srgb, var(--lamp) 12%, var(--surface)); border-bottom: 1px solid color-mix(in srgb, var(--lamp) 28%, var(--line));
+  font-size: var(--fs-caption); color: var(--lamp); }
+.sys-banner span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sys-banner-btn { flex: none; padding: 3px 10px; border-radius: var(--r-sm); font-size: var(--fs-caption); font-weight: 600;
+  color: var(--ink); background: var(--surface-2); border: 1px solid var(--line-2); white-space: nowrap; }
+.sys-banner-btn:hover { background: var(--surface-3); }
+.awake-meta { position: absolute; top: var(--pad-y); right: var(--pad-x); z-index: 2; display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 6px; border-radius: var(--r-sm); font-size: var(--fs-caption); color: var(--ink-3); transition: color var(--dur-fast) var(--ease); }
+.awake-meta svg { width: 14px; height: 14px; }
+.awake-meta:hover { color: var(--ink); }
+.awake-meta.on { color: var(--moon); }
+.mini[hidden] { display: none; }
+.mini-ico { width: 24px; height: 24px; display: grid; place-items: center; color: var(--moon); }
+.mini-ico svg { width: 18px; height: 18px; }
+h1 { font-size: var(--fs-h1); font-weight: 600; letter-spacing: -.015em; line-height: 28px; margin: 0; }
 .label { font-size: 12px; color: var(--ink-3); margin-bottom: 10px; font-weight: 500; }
 
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 22px; }
@@ -248,7 +264,9 @@ html.dragging-dial, html.dragging-dial * { cursor: grabbing !important; -webkit-
 .note { color: var(--ink-3); font-size: 12.5px; line-height: 1.5; }
 .note.warn { color: var(--lamp); }
 
-.bar { flex: none; align-self: center; width: 100%; max-width: calc(var(--content-max) + 2 * var(--pad-x)); padding: 0 var(--pad-x) clamp(12px, 2.4vh, 22px); display: flex; align-items: center; gap: 10px; }
+.bar { flex: none; width: 100%; min-height: 58px; padding: 10px var(--pad-x); border-top: 1px solid var(--line); background: var(--surface);
+  display: flex; align-items: center; gap: 12px; }
+.bar-run { gap: 16px; }
 .summary { flex: 1; min-width: 0; font-size: 14px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .summary b { color: var(--ink); font-weight: 600; }
 .inline-input { border: 1px solid var(--line-2); background: var(--surface); padding: 9px 14px; width: 200px; border-radius: 999px; }
@@ -803,9 +821,16 @@ body { font-size: 13.5px; }
   .act .ring-i,
   [data-theme='light'] .act .ring-i { width: 18px; height: 18px; flex: none; }
   .act svg { width: 12px; height: 12px; }
-  .side { gap: 6px; }
+  .side { gap: 4px; }
   .cond { gap: 4px; }
-  .cond .chips { gap: 4px; }
+  .cond .chips { gap: 3px; }
+  .cond .chip { padding: 3px 7px; font-size: 11px; }
+  .sentence, .sentence input { font-size: 13px; line-height: 1.5; }
+  .sys-banner { min-height: 24px; padding: 2px var(--pad-x); font-size: 11px; }
+  .bar { min-height: 42px; padding: 5px var(--pad-x); }
+  .head { margin-bottom: 4px; }
+  h1 { font-size: 18px; line-height: 22px; }
+  .set { padding: 6px 0; }
 }
 
 /* Thêm lịch: gọn lại khi hẹp để nút Thêm lịch vẫn nằm cùng hàng */

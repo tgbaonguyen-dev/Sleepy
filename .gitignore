@@ -1,0 +1,13 @@
+# Rust / Tauri
+/target
+src-tauri/target
+src-tauri/gen/schemas
+
+# Node (chỉ dùng cho Tauri CLI)
+node_modules/
+
+# Hệ điều hành / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp

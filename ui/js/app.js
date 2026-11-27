@@ -573,7 +573,7 @@ function viewSettings() {
         <div class="caps" style="margin-top:10px">${ORDER.map((k) => { const c = capWord[st.caps?.[k]] || capWord.unknown; return `<div><span>${S.ACTIONS[k].label}</span><span class="${c[1]}">${c[0]}</span></div>`; }).join('')}</div></div>
     </div>
     </div>
-    <p class="note ver">Sleepy 1.1 · dữ liệu lưu tại ~/.config/Sleepy/sleepy.json</p>
+    <p class="note ver">Sleepy 2.0 · dữ liệu lưu tại ~/.config/dev.giabao.sleepy/sleepy.json</p>
   </section>`;
 }
 

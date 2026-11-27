@@ -2,5 +2,7 @@
 
 mod autostart;
 mod state;
+mod windows;
 
 pub use state::AppState;
+pub use windows::{on_window_event, show_main};

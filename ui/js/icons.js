@@ -43,6 +43,10 @@ window.Icons = (() => {
     chevR: w('<path d="m9.5 6 6 6-6 6"/>'),
     min: '<svg width="11" height="11" viewBox="0 0 11 11"><path d="M1 5.5h9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
     max: '<svg width="11" height="11" viewBox="0 0 11 11"><rect x="1.5" y="1.5" width="8" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>',
-    close: '<svg width="11" height="11" viewBox="0 0 11 11"><path d="M1.5 1.5l8 8M9.5 1.5l-8 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>'
+    close: '<svg width="11" height="11" viewBox="0 0 11 11"><path d="M1.5 1.5l8 8M9.5 1.5l-8 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+    search: w('<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>'),
+    copy: w('<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'),
+    check: w('<path d="m5 12.5 4.5 4.5L19 7.5"/>'),
+    alert: w('<circle cx="12" cy="12" r="9"/><path d="M12 8v4.5M12 16h.01"/>'),
   };
 })();

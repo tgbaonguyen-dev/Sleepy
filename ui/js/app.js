@@ -6,11 +6,10 @@ const pad = S.pad;
 const TAU = Math.PI * 2;
 
 let st = null, snap = null, view = 'timer', draft = null;
-let procList = [], procRunning = null, savingPreset = false, renaming = null, histFilter = 'all';
+let procList = [], procRunning = null, savingPreset = false, renaming = null, editingSched = null, histFilter = 'all';
 const spark = { cpu: [], net: [] };
 // Danh sách dài (preset, lịch lặp, nhật ký) không bao giờ cuộn: mỗi trang chỉ chứa số dòng vừa khung,
 // số đó được đo lại sau mỗi lần vẽ / đổi cỡ cửa sổ (xem fitPages).
-let setTab = 'warn'; // nhóm cài đặt đang mở khi cửa sổ nhỏ (rộng thì cả ba nhóm hiện cùng lúc)
 const pages = { presets: { page: 0, per: 8 }, schedules: { page: 0, per: 6 }, history: { page: 0, per: 10 } };
 const sched = { h: 23, m: 30, days: [1, 2, 3, 4, 5], action: 'shutdown' };
 
@@ -28,6 +27,14 @@ Dropdown.define('sfilter', [
   { value: 'noise', label: 'Ồn & Não', icon: Icons.brown },
   { value: 'places', label: 'Không gian', icon: Icons.lofi },
 ]);
+const HIST_FILTERS = [
+  { value: 'all', label: 'Tất cả', icon: Icons.history },
+  { value: 'done', label: 'Đã thực hiện', icon: Icons.check },
+  { value: 'cancel', label: 'Đã huỷ', icon: Icons.close },
+  { value: 'error', label: 'Lỗi', icon: Icons.alert },
+  { value: 'dry', label: 'Chạy thử', icon: Icons.timer },
+];
+Dropdown.define('hfilter', HIST_FILTERS);
 
 // ---------- Hình học vòng tròn ----------
 const pt = (c, r, f) => [c + r * Math.sin(f * TAU), c - r * Math.cos(f * TAU)];
@@ -51,22 +58,10 @@ function ticks(c, r, n, major, len = 6) {
   return s;
 }
 
-// Mặt trời ban ngày (6h–18h), mặt trăng ban đêm — dùng làm núm kéo và điểm cuối vòng đếm
+// Plain endpoint shared by setup and running dials.
 const isDay = (h) => h >= 6 && h < 18;
-function celestial(x, y, day, s = 1, cls = 'handle-g') {
-  const R = 17 * s;
-  let inner = '';
-  if (day) {
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * TAU, r0 = 8.5 * s, r1 = 12 * s;
-      inner += `<line x1="${(x + r0 * Math.cos(a)).toFixed(2)}" y1="${(y + r0 * Math.sin(a)).toFixed(2)}" x2="${(x + r1 * Math.cos(a)).toFixed(2)}" y2="${(y + r1 * Math.sin(a)).toFixed(2)}" stroke="#F5A524" stroke-width="${2 * s}" stroke-linecap="round"/>`;
-    }
-    inner += `<circle cx="${x}" cy="${y}" r="${5.6 * s}" fill="#FFB938" stroke="#F29A1D" stroke-width="${s}"/>`;
-  } else {
-    inner = `<circle cx="${x}" cy="${y}" r="${8.5 * s}" class="cel-moon"/><circle cx="${x + 4.6 * s}" cy="${y - 3.4 * s}" r="${7.4 * s}" class="cel-bg"/>` +
-      `<circle cx="${x + 7.5 * s}" cy="${y + 4.5 * s}" r="${1 * s}" class="cel-moon"/>`;
-  }
-  return `<g class="${cls}" style="transform-origin:${x}px ${y}px"><circle cx="${x}" cy="${y}" r="${R}" class="cel-bg cel-disc"/>${inner}</g>`;
+function celestial(x, y, _day, s = 1, cls = 'handle-g') {
+  return `<g class="${cls}" style="transform-origin:${x}px ${y}px"><circle cx="${x}" cy="${y}" r="${7 * s}" class="dial-dot"/></g>`;
 }
 
 // ---------- Bản nháp ----------
@@ -101,27 +96,161 @@ let draftTimer;
 function saveDraft() { clearTimeout(draftTimer); draftTimer = setTimeout(() => sleepy.setDraft(draft), 400); }
 
 // ---------- Tiện ích ----------
-let lastUndo = null;
+const UNDO_MAX = 20;
+const undoStack = [];
+let activeToastBatch = null;
+const pendingDeletes = new Set();
+
+function clearToast() {
+  const t = $('#toast');
+  clearTimeout(t._t);
+  t.className = 'toast';
+  t._act = null;
+  activeToastBatch = null;
+}
 function toast(msg, opts = false) {
   const o = typeof opts === 'boolean' ? { err: opts } : (opts || {});
   const t = $('#toast');
-  if (o.undo) lastUndo = o.undo;
+  if (o.undo && !o._fromStack) {
+    undoStack.push({ type: 'custom', run: o.undo });
+    if (undoStack.length > UNDO_MAX) undoStack.shift();
+  }
+  if (!o._keepBatch) activeToastBatch = null;
+  const cleanMsg = o.action ? String(msg).replace(/\.$/, '') : String(msg);
   t.setAttribute('role', o.err ? 'alert' : 'status');
-  t.innerHTML = `<span class="toast-msg">${esc(msg)}</span>` +
+  t.innerHTML = `<span class="toast-msg">${esc(cleanMsg)}</span>` +
     (o.action ? `<button class="toast-act" data-toast-act>${esc(o.action)}</button>` : '') +
     `<button class="toast-x" data-toast-close aria-label="Đóng thông báo">×</button>`;
-  t._act = o.onAction || o.undo || null;
+  t._act = o.onAction || (o._fromStack ? () => runUndo() : o.undo) || null;
   t.className = 'toast show' + (o.err ? ' err' : '') + (o.action ? ' has-act' : '');
   clearTimeout(t._t);
-  t._t = setTimeout(() => { t.className = 'toast'; }, o.action ? 6000 : 4000);
+  t._t = setTimeout(() => { t.className = 'toast'; t._act = null; activeToastBatch = null; }, o.action ? 6000 : 4000);
 }
-function runUndo() {
-  if (!lastUndo) return false;
-  const fn = lastUndo;
-  lastUndo = null;
-  $('#toast').className = 'toast';
-  fn();
-  return true;
+function pushDeleteUndo(kind, item, index) {
+  const op = { type: 'delete', kind, item, index };
+  const t = $('#toast');
+  const canMerge = t?.classList.contains('show') && activeToastBatch && activeToastBatch.kind === kind && undoStack[undoStack.length - 1] === activeToastBatch.entry;
+  let entry;
+  if (canMerge) {
+    entry = activeToastBatch.entry;
+    entry.ops.push(op);
+  } else {
+    entry = { type: 'delete-batch', kind, ops: [op] };
+    undoStack.push(entry);
+    if (undoStack.length > UNDO_MAX) undoStack.shift();
+    activeToastBatch = { kind, entry };
+  }
+  const n = entry.ops.length;
+  const msg = kind === 'preset'
+    ? (n === 1 ? `Đã xoá preset "${item.name}"` : `Đã xoá ${n} preset`)
+    : (n === 1 ? `Đã xoá lịch ${item.time}` : `Đã xoá ${n} lịch`);
+  toast(msg, { action: 'Hoàn tác', _fromStack: true, _keepBatch: true });
+}
+async function runUndo() {
+  if (!undoStack.length) return false;
+  const entry = undoStack.pop();
+  clearToast();
+  if (entry.type === 'custom') {
+    await entry.run();
+    return true;
+  }
+  if (entry.type === 'delete-batch') {
+    const { kind, ops } = entry;
+    if (kind === 'preset') {
+      const next = [...st.presets];
+      for (let i = ops.length - 1; i >= 0; i--) {
+        const { item, index } = ops[i];
+        if (!next.some((x) => x.id === item.id)) {
+          const pos = Math.max(0, Math.min(index, next.length));
+          next.splice(pos, 0, item);
+        }
+      }
+      st.presets = next;
+      await sleepy.setPresets(next);
+      render();
+      toast(ops.length === 1 ? `Đã khôi phục "${ops[0].item.name}"` : `Đã khôi phục ${ops.length} preset`);
+    } else if (kind === 'schedule') {
+      const next = [...st.schedules];
+      for (let i = ops.length - 1; i >= 0; i--) {
+        const { item, index } = ops[i];
+        if (!next.some((x) => x.id === item.id)) {
+          const pos = Math.max(0, Math.min(index, next.length));
+          next.splice(pos, 0, item);
+        }
+      }
+      st.schedules = next;
+      await sleepy.setSchedules(next);
+      render();
+      toast(ops.length === 1 ? `Đã khôi phục lịch ${ops[0].item.time}` : `Đã khôi phục ${ops.length} lịch`);
+    }
+    return true;
+  }
+  return false;
+}
+function collapseRow(sel) {
+  const el = $(sel);
+  if (!el || reduceMotion.matches) return Promise.resolve();
+  el.style.maxHeight = `${el.offsetHeight}px`;
+  el.getBoundingClientRect();
+  el.classList.add('row-removing');
+  return new Promise((r) => setTimeout(r, 200));
+}
+function focusAfterDelete(kind, nextId, prevId) {
+  requestAnimationFrame(() => {
+    if (kind === 'preset') {
+      const target = (nextId && $(`[data-pmenu="${nextId}"]`)) || (prevId && $(`[data-pmenu="${prevId}"]`)) || $('.presets .empty [data-view="timer"]');
+      target?.focus({ preventScroll: true });
+    } else if (kind === 'schedule') {
+      const target = (nextId && $(`[data-smenu="${nextId}"]`)) || (prevId && $(`[data-smenu="${prevId}"]`)) || $('[data-dial="sched.h"]');
+      target?.focus({ preventScroll: true });
+    }
+  });
+}
+async function deletePreset(id) {
+  const key = `p:${id}`;
+  if (pendingDeletes.has(key)) return;
+  const curIdx = st.presets.findIndex((p) => p.id === id);
+  if (curIdx < 0) return;
+  const nextId = st.presets[curIdx + 1]?.id || null;
+  const prevId = st.presets[curIdx - 1]?.id || null;
+  pendingDeletes.add(key);
+  try {
+    await collapseRow(`[data-key="p-${id}"]`);
+    const idx = st.presets.findIndex((p) => p.id === id);
+    if (idx < 0) return;
+    const removed = st.presets[idx];
+    const next = [...st.presets.slice(0, idx), ...st.presets.slice(idx + 1)];
+    st.presets = next;
+    await sleepy.setPresets(next);
+    render();
+    pushDeleteUndo('preset', removed, idx);
+    focusAfterDelete('preset', nextId, prevId);
+  } finally {
+    pendingDeletes.delete(key);
+  }
+}
+async function deleteSchedule(id) {
+  const key = `s:${id}`;
+  if (pendingDeletes.has(key)) return;
+  const curIdx = st.schedules.findIndex((s) => s.id === id);
+  if (curIdx < 0) return;
+  const nextId = st.schedules[curIdx + 1]?.id || null;
+  const prevId = st.schedules[curIdx - 1]?.id || null;
+  pendingDeletes.add(key);
+  try {
+    await collapseRow(`[data-key="s-${id}"]`);
+    const idx = st.schedules.findIndex((s) => s.id === id);
+    if (idx < 0) return;
+    const removed = st.schedules[idx];
+    const next = [...st.schedules.slice(0, idx), ...st.schedules.slice(idx + 1)];
+    st.schedules = next;
+    await sleepy.setSchedules(next);
+    render();
+    pushDeleteUndo('schedule', removed, idx);
+    focusAfterDelete('schedule', nextId, prevId);
+  } finally {
+    pendingDeletes.delete(key);
+  }
 }
 
 // Popover xác nhận nhẹ neo vào nút kích hoạt (không dùng window.confirm)
@@ -132,6 +261,17 @@ function closeConfirm(refocus = false) {
   confirmPop = null;
   el.remove();
   if (refocus && trigger?.isConnected) trigger.focus({ preventScroll: true });
+}
+function placePopover(pop, trigger, preferUp = false) {
+  const r = trigger.getBoundingClientRect();
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  const up = preferUp
+    ? (r.top > ph + 16 && (window.innerHeight - r.bottom < ph + 16 || !!trigger.closest('.bar, .controls')))
+    : (window.innerHeight - r.bottom < ph + 12 && r.top > ph + 12);
+  const top = up ? r.top - ph - 8 : r.bottom + 8;
+  const left = Math.max(8, Math.min(r.right - pw, window.innerWidth - pw - 8));
+  pop.style.left = `${Math.round(left)}px`;
+  pop.style.top = `${Math.round(Math.max(8, Math.min(top, window.innerHeight - ph - 8)))}px`;
 }
 function openConfirm(trigger, { title, confirmLabel, danger = true, onConfirm }) {
   closeConfirm(false);
@@ -144,13 +284,7 @@ function openConfirm(trigger, { title, confirmLabel, danger = true, onConfirm })
     <button class="btn small ${danger ? 'danger-solid' : 'primary'}" data-cpop-ok>${esc(confirmLabel)}</button>
   </div>`;
   document.body.appendChild(pop);
-  const r = trigger.getBoundingClientRect();
-  const pw = pop.offsetWidth, ph = pop.offsetHeight;
-  const up = r.top > ph + 16 && (window.innerHeight - r.bottom < ph + 16 || !!trigger.closest('.bar, .controls'));
-  const top = up ? r.top - ph - 8 : r.bottom + 8;
-  const left = Math.max(8, Math.min(r.right - pw, window.innerWidth - pw - 8));
-  pop.style.left = `${Math.round(left)}px`;
-  pop.style.top = `${Math.round(Math.max(8, Math.min(top, window.innerHeight - ph - 8)))}px`;
+  placePopover(pop, trigger, true);
   confirmPop = { el: pop, trigger, onConfirm };
   pop.querySelector('[data-cpop-cancel]').focus({ preventScroll: true });
   pop.addEventListener('click', (e) => {
@@ -167,56 +301,108 @@ function openConfirm(trigger, { title, confirmLabel, danger = true, onConfirm })
     }
   });
 }
-function openPresetMenu(trigger, p) {
+function openErrorHelp(trigger, note) {
+  closeConfirm(false);
+  const pop = document.createElement('div');
+  pop.className = 'cpop cpop-help';
+  pop.setAttribute('role', 'dialog');
+  pop.setAttribute('aria-label', 'Cách khắc phục quyền tắt máy');
+  pop.innerHTML = `<div class="cpop-t">Cách cấp quyền tắt máy</div>
+    <p class="cpop-p">${note ? `${esc(note)}. ` : ''}Sleepy dùng <code>systemd-logind</code> để thực hiện lệnh nguồn. Hãy chạy trong phiên desktop cục bộ đang hoạt động, hoặc cấp quyền <code>polkit</code> cho <code>org.freedesktop.login1.power-off</code>.</p>
+    <div class="cpop-a"><button class="btn small" data-cpop-cancel>Đóng</button></div>`;
+  document.body.appendChild(pop);
+  placePopover(pop, trigger, false);
+  confirmPop = { el: pop, trigger };
+  pop.querySelector('[data-cpop-cancel]').focus({ preventScroll: true });
+  pop.addEventListener('click', (e) => { if (e.target.closest('[data-cpop-cancel]')) closeConfirm(true); });
+  pop.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' || e.key === 'Tab') { e.preventDefault(); closeConfirm(true); }
+  });
+}
+function openActionMenu(trigger, items, onPick) {
   closeConfirm(false);
   const pop = document.createElement('div');
   pop.className = 'cpop pmenu';
   pop.setAttribute('role', 'menu');
-  pop.innerHTML = `
-    <button role="menuitem" data-pm="rename">Đổi tên</button>
-    <button role="menuitem" data-pm="edit">Sửa trong Hẹn giờ</button>
-    <button role="menuitem" data-pm="dup">Nhân bản</button>
-    <button role="menuitem" class="danger" data-pm="del">Xoá preset</button>`;
+  pop.innerHTML = items.map((it) => `<button role="menuitem" class="${it.danger ? 'danger' : ''}" data-pm="${it.id}">${esc(it.label)}</button>`).join('');
   document.body.appendChild(pop);
-  const r = trigger.getBoundingClientRect();
-  const pw = pop.offsetWidth, ph = pop.offsetHeight;
-  const up = window.innerHeight - r.bottom < ph + 12 && r.top > ph + 12;
-  pop.style.left = `${Math.round(Math.max(8, Math.min(r.right - pw, window.innerWidth - pw - 8)))}px`;
-  pop.style.top = `${Math.round(up ? r.top - ph - 6 : r.bottom + 6)}px`;
+  placePopover(pop, trigger, false);
   confirmPop = { el: pop, trigger };
-  pop.querySelector('button').focus({ preventScroll: true });
+  pop.querySelector('button')?.focus({ preventScroll: true });
   pop.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-pm]');
     if (!b) return;
     const act = b.dataset.pm;
     closeConfirm(false);
+    await onPick(act);
+  });
+  pop.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); closeConfirm(true); }
+    else if (e.key === 'Tab') { e.preventDefault(); closeConfirm(true); }
+    else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      const btns = [...pop.querySelectorAll('button')];
+      const i = btns.indexOf(document.activeElement);
+      e.preventDefault();
+      btns[(i + (e.key === 'ArrowDown' ? 1 : -1) + btns.length) % btns.length].focus();
+    }
+  });
+}
+function openPresetMenu(trigger, p) {
+  openActionMenu(trigger, [
+    { id: 'rename', label: 'Đổi tên' },
+    { id: 'edit', label: 'Sửa' },
+    { id: 'dup', label: 'Nhân bản' },
+    { id: 'del', label: 'Xoá', danger: true },
+  ], async (act) => {
     if (act === 'rename') { renaming = p.id; render(); }
     else if (act === 'edit') {
       draft = initDraft({ action: p.action, trigger: p.trigger });
       saveDraft();
       view = 'timer';
       render();
-      toast(`Đã nạp "${p.name}" vào Hẹn giờ.`);
+      toast(`Đã nạp "${p.name}" vào Hẹn giờ`);
     } else if (act === 'dup') {
       const copy = { ...p, id: Math.random().toString(16).slice(2, 12), name: `${p.name} (bản sao)` };
       await sleepy.setPresets([...st.presets, copy]);
-      toast(`Đã nhân bản "${p.name}".`);
+      toast(`Đã nhân bản "${p.name}"`);
     } else if (act === 'del') {
-      const prev = [...st.presets];
-      await sleepy.setPresets(prev.filter((x) => x.id !== p.id));
-      toast(`Đã xoá preset "${p.name}".`, {
-        action: 'Hoàn tác',
-        undo: () => sleepy.setPresets(prev).then(() => toast(`Đã khôi phục "${p.name}".`)),
-      });
+      await deletePreset(p.id);
     }
   });
-  pop.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { e.preventDefault(); closeConfirm(true); }
-    else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      const btns = [...pop.querySelectorAll('button')];
-      const i = btns.indexOf(document.activeElement);
-      e.preventDefault();
-      btns[(i + (e.key === 'ArrowDown' ? 1 : -1) + btns.length) % btns.length].focus();
+}
+function openScheduleMenu(trigger, sc) {
+  openActionMenu(trigger, [
+    { id: 'edit', label: 'Sửa giờ' },
+    { id: 'dup', label: 'Nhân bản' },
+    { id: 'del', label: 'Xoá', danger: true },
+  ], async (act) => {
+    if (act === 'edit') {
+      editingSched = sc.id;
+      render();
+      const inp = $(`[data-stime-edit="${sc.id}"] input[data-se="h"]`);
+      if (inp) { inp.focus({ preventScroll: true }); inp.select(); }
+    } else if (act === 'dup') {
+      const copy = { ...sc, id: Math.random().toString(16).slice(2, 12), days: [...sc.days], lastArmed: 0 };
+      await sleepy.setSchedules([...st.schedules, copy]);
+      toast(`Đã nhân bản lịch ${sc.time}`);
+    } else if (act === 'del') {
+      await deleteSchedule(sc.id);
+    }
+  });
+}
+function openHistoryMenu(trigger) {
+  openActionMenu(trigger, [
+    { id: 'clear', label: 'Xoá nhật ký…', danger: true },
+  ], (act) => {
+    if (act === 'clear') {
+      const n = st.history.length;
+      if (!n) return;
+      openConfirm(trigger, {
+        title: `Xoá ${n} mục nhật ký?`,
+        confirmLabel: `Xoá ${n} mục`,
+        danger: true,
+        onConfirm: () => sleepy.clearHistory().then(() => toast(`Đã xoá ${n} mục nhật ký`)),
+      });
     }
   });
 }
@@ -405,6 +591,7 @@ function fitPages() {
 // ---------- 01 Hẹn giờ: thiết lập ----------
 function viewSetup() {
   const d = draft, mode = isCond(d.type) ? 'cond' : d.type;
+  const conditionIssue = isCond(d.type) ? conditionError() : '';
   const acts = ORDER.map((k) => {
     const ok = capOk(k);
     return `<button class="act ${d.action === k ? 'on' : ''}" data-action="${k}" ${ok ? '' : 'disabled title="Hành động không được hệ thống hỗ trợ"'} title="${S.ACTIONS[k].hint}"><span class="ring-i">${Icons[k]}</span>${S.ACTIONS[k].label}</button>`;
@@ -438,8 +625,24 @@ function viewSetup() {
     ${savingPreset
       ? `<input id="preset-name" class="inline-input" placeholder="Tên preset" maxlength="40"><button class="btn" data-key="preset-save" data-do="preset-save">Lưu</button><button class="btn ghost" data-key="preset-cancel" data-do="preset-cancel">Huỷ</button>`
       : `<button class="btn ghost" data-key="preset-new" data-do="preset-new">${Icons.bookmark} Lưu preset</button>`}
-    <button class="btn primary big" data-key="start" data-do="start">${Icons.play} Bắt đầu</button>
+    <button class="btn primary big" data-key="start" data-do="start" ${conditionIssue ? `disabled title="${esc(conditionIssue)}"` : ''}>${Icons.play} Bắt đầu</button>
   </div>`;
+}
+
+function conditionError() {
+  const c = draft[draft.type];
+  if (draft.type === 'process') {
+    if (!c.name.trim()) return 'Nhập tên tiến trình.';
+    if (procRunning === false) return 'Không thấy tiến trình đang chạy.';
+    return '';
+  }
+  if (draft.type === 'battery' && !st.hasBattery) return 'Thiết bị không có pin.';
+  const ranges = {
+    idle: [['minutes', 1, 1440]], battery: [['percent', 1, 100]],
+    net: [['kbps', 1, 99999], ['minutes', 1, 1440]], cpu: [['percent', 1, 100], ['minutes', 1, 1440]],
+  };
+  const invalid = (ranges[draft.type] || []).find(([key, min, max]) => !Number.isFinite(c[key]) || c[key] < min || c[key] > max);
+  return invalid ? `Giá trị phải từ ${invalid[1]} đến ${invalid[2]}.` : '';
 }
 
 function condCard() {
@@ -456,7 +659,9 @@ function condCard() {
     case 'cpu': s = `Khi CPU dưới <input class="num" data-field="cpu.percent" value="${c.percent}">% trong <input class="num" data-field="cpu.minutes" value="${c.minutes}"> phút`; note = 'Mức sử dụng CPU phải duy trì dưới ngưỡng trong toàn bộ khoảng thời gian.'; break;
     case 'process': s = `Khi tiến trình <input class="wide" data-field="process.name" value="${esc(c.name)}" list="procs" placeholder="firefox" spellcheck="false"> kết thúc<datalist id="procs">${procList.map((p) => `<option value="${esc(p)}">`).join('')}</datalist>`; note = 'Nhập tên tiến trình như hiển thị trong System Monitor.'; break;
   }
+  const issue = conditionError();
   return `<div class="card cond"><div class="chips">${tabs}</div><div class="sentence">${s}</div>
+    <p class="field-error" ${issue ? '' : 'hidden'}>${esc(issue)}</p>
     <p class="note">${note ? note + ' ' : ''}Sau khi điều kiện được đáp ứng, hệ thống chờ thêm ${st.settings.graceSeconds} giây trước khi thực hiện hành động.</p></div>`;
 }
 
@@ -507,8 +712,8 @@ function syncChips() {
 
 function dialSkeleton(type) {
   const hand = `<g id="dial-hand">${celestial(0, 0, true, 1, 'handle-g cel-day')}${celestial(0, 0, false, 1, 'handle-g cel-night')}</g>`;
-  const arcEl = '<path id="dial-arc" class="arc" fill="none" stroke-width="10" stroke-linecap="round"/>';
-  const track = `<circle class="track" cx="${DC}" cy="${DC}" r="${DR}" fill="none" stroke-width="10"/>`;
+  const arcEl = '<path id="dial-arc" class="arc" fill="none" stroke-width="6" stroke-linecap="round"/>';
+  const track = `<circle class="track" cx="${DC}" cy="${DC}" r="${DR}" fill="none" stroke-width="6"/>`;
   if (type === 'countdown') {
     return DEFS + ticks(DC, DR - 20, 60, 5) + track +
       `<circle id="dial-hours" cx="${DC}" cy="${DC}" r="${DR + 14}" fill="none" stroke-width="2" stroke-dasharray="2 6" style="stroke:var(--moon);opacity:.35"/>` + arcEl + hand;
@@ -607,8 +812,8 @@ function renderDial({ dur = 180 } = {}) {
     case 'process': cap = 'Tiến trình'; v = procRunning ? 1 : 0; val = !c.name.trim() ? '—' : procRunning == null ? '…' : procRunning ? 'Đang chạy' : 'Không hoạt động'; sub = c.name.trim() ? `"${c.name.trim()}"` : 'chưa chọn tiến trình'; break;
   }
   const g0 = 0.625, span = 0.75;
-  body = `<path d="${arc(DC, DR, g0, g0 + span)}" fill="none" stroke-width="10" stroke-linecap="round" class="track"/>` +
-    `<path class="arc" d="${arc(DC, DR, g0, g0 + span * Math.max(0.002, v))}" fill="none" stroke-width="10" stroke-linecap="round"/>`;
+  body = `<path d="${arc(DC, DR, g0, g0 + span)}" fill="none" stroke-width="6" stroke-linecap="round" class="track"/>` +
+    `<path class="arc" d="${arc(DC, DR, g0, g0 + span * Math.max(0.002, v))}" fill="none" stroke-width="6" stroke-linecap="round"/>`;
   if (th != null) { const [x0, y0] = pt(DC, DR - 10, g0 + span * th), [x1, y1] = pt(DC, DR + 10, g0 + span * th); body += `<line class="th" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}"/>`; }
   cHtml = `<div class="cap">${cap}</div><div class="live num${val.length > 7 ? ' long' : ''}">${esc(val)}</div><div class="sub">${esc(sub)}</div>`;
   const sp = $('#spark');
@@ -748,10 +953,11 @@ function viewRunning() {
   const j = snap.job;
   const a = S.ACTIONS[j.action].label;
   return `<section class="view running" data-key="v-running">
-    <h1 class="sr-only clip-fit">Đang hẹn giờ</h1>
-    <button class="awake-pill awake-meta ${st.settings.keepAwake ? 'on' : ''}" data-set="keepAwake" data-val="${!st.settings.keepAwake}" title="${st.settings.keepAwake ? 'Đang giữ màn hình và hệ thống thức — bấm để tắt' : 'Cho phép màn hình tắt theo hệ thống — bấm để bật giữ thức'}">
-      ${Icons.moon}<span>${st.settings.keepAwake ? 'Đang giữ máy thức' : 'Giữ máy thức: Tắt'}</span>
-    </button>
+    <div class="head running-head"><h1 class="sr-only clip-fit">Đang hẹn giờ</h1>
+      <button class="awake-pill awake-meta ${st.settings.keepAwake ? 'on' : ''}" data-set="keepAwake" data-val="${!st.settings.keepAwake}" title="${st.settings.keepAwake ? 'Đang giữ màn hình và hệ thống thức — bấm để tắt' : 'Cho phép màn hình tắt theo hệ thống — bấm để bật giữ thức'}">
+        ${Icons.moon}<span>${st.settings.keepAwake ? 'Đang giữ máy thức' : 'Giữ máy thức: Tắt'}</span>
+      </button>
+    </div>
     <div class="orb rise d1" id="orb" data-morph-keep="class"><svg viewBox="0 0 400 400" id="orb-svg" data-own></svg>
       <div class="center"><div class="icon">${Icons[j.action]}</div><div class="big num" id="big" data-own></div>
         <div class="what" id="what" data-own></div><div class="src">${esc(sourceLabel(j.source))}</div></div></div>
@@ -760,15 +966,15 @@ function viewRunning() {
   <div class="bar bar-run" data-key="bar-run">
     <div class="summary"></div>
     <button class="btn danger-ghost hold-btn" data-key="now" data-hold-now title="Nhấn giữ 0.8 giây (hoặc Enter/Space) để thực hiện ngay">${esc(a)} ngay…</button>
-    <button class="btn primary big" data-key="cancel" data-do="cancel">Huỷ hẹn giờ</button>
+    <button class="btn primary big" data-key="cancel" data-do="cancel" title="Huỷ hẹn giờ (Ctrl+.)">Huỷ hẹn giờ</button>
   </div>`;
 }
 
 const runDial = { svg: null, orb: null, deadline: 0, total: 0, raf: 0 };
 function runningDialSkeleton() {
   return DEFS + ticks(200, 188, 60, 5, 4) +
-    '<circle cx="200" cy="200" r="168" fill="none" stroke-width="10" class="track"/>' +
-    '<path id="run-arc" fill="none" stroke-width="10" stroke-linecap="round" style="filter:drop-shadow(0 0 8px var(--halo))"/>' +
+    '<circle cx="200" cy="200" r="168" fill="none" stroke-width="6" class="track"/>' +
+    '<path id="run-arc" fill="none" stroke-width="6" stroke-linecap="round"/>' +
     `<g id="run-hand" class="cel-run">${celestial(0, 0, true, 0.95, 'run-day')}${celestial(0, 0, false, 0.95, 'run-night')}</g>`;
 }
 function paintRunningDial() {
@@ -820,9 +1026,9 @@ function updateRunning() {
     orb.classList.remove('hot', 'final');
     const w = watchValue(j), p = Math.max(0, Math.min(1, w.p));
     // morph giữ <g class="orbit"> nên vòng quay chậm không bị giật về đầu mỗi giây
-    morph(svg, DEFS + `<g class="orbit"><circle cx="${C}" cy="${C}" r="188" fill="none" stroke-width="1.5" style="stroke:var(--line-2)" stroke-dasharray="2 10"/><circle cx="${C}" cy="12" r="4" style="fill:var(--moon);filter:drop-shadow(0 0 6px var(--moon))"/></g>` +
-      `<circle cx="${C}" cy="${C}" r="${R}" fill="none" stroke-width="10" class="track"/>` +
-      `<path d="${arc(C, R, 0, p)}" fill="none" stroke-width="10" stroke-linecap="round" stroke="url(#gMoon)"/>`);
+    morph(svg, DEFS + `<g class="orbit"><circle cx="${C}" cy="${C}" r="188" fill="none" stroke-width="1.5" style="stroke:var(--ink-3)" stroke-dasharray="2 10"/><circle cx="${C}" cy="12" r="4" style="fill:var(--moon)"/></g>` +
+      `<circle cx="${C}" cy="${C}" r="${R}" fill="none" stroke-width="6" class="track"/>` +
+      `<path d="${arc(C, R, 0, p)}" fill="none" stroke-width="6" stroke-linecap="round" stroke="url(#gMoon)"/>`);
     big.dataset.mode = 'w'; big.dataset.t = '';
     morph(big, `${esc(w.main)}${w.sub ? `<small>${esc(w.sub)}</small>` : ''}`);
     big.classList.toggle('long', w.main.length > 8);
@@ -836,7 +1042,7 @@ function updateRunning() {
 // ---------- Âm thanh nền (2-pane layout, không blur/pill, đồng nhất kích thước, 60 FPS) ----------
 const FADES = [0, 5, 10, 20, 30];
 const SND_TABS = [
-  ['sounds', 'Âm thanh'],
+  ['sounds', 'Kênh'],
   ['mixes', 'Bộ mix'],
   ['playlist', 'Playlist'],
   ['youtube', 'YouTube'],
@@ -853,6 +1059,7 @@ const SND_FILTERS = [
 const PRIORITY_IDS = ['rain', 'thunder', 'wind', 'crickets', 'lofi', 'brown'];
 let sndTab = 'sounds';
 let sndFilter = 'all';
+let sleepSound = 'none';
 let sndPage = 0;
 let mixPage = 0;
 let playlistFilter = 'all';
@@ -880,17 +1087,14 @@ function pagerHtml(attr, pg, label) {
 
 function quickSoundsHtml() {
   const A = Ambient;
-  const presets = A.presets.slice(0, 3).map((p) => {
-    const on = A.activePresetId === p.id && A.playing;
-    return `<button class="chip ${on ? 'on' : ''}" data-apreset="${p.id}">${esc(p.name)}</button>`;
-  }).join('');
+  Dropdown.define('sleep-sound', [
+    { value: 'none', label: 'Không', icon: Icons.sound },
+    ...A.presets.map((p) => ({ value: `preset:${p.id}`, label: p.name, icon: Icons.sound })),
+    { value: 'open', label: 'Mở trang Âm thanh ↗', icon: Icons.sound },
+  ]);
   return `<div id="side-sounds" class="quick-snd">
     <div class="label">Âm thanh khi ngủ</div>
-    <div class="chips">
-      <button class="chip ${A.playing ? 'on' : ''}" data-do="snd-play">${A.playing ? 'Tạm dừng' : 'Phát nhạc'}</button>
-      ${presets}
-      <button class="chip" data-view="sounds">Mở trang Âm thanh ↗</button>
-    </div>
+    ${Dropdown.html({ opts: 'sleep-sound', value: sleepSound, key: 'dd-sleep-sound', attrs: 'data-sleep-sound', labelledby: 'side-sounds' })}
   </div>`;
 }
 
@@ -906,28 +1110,24 @@ function soundsPaneHtml(A, song) {
   const pg = paginateSlice(list, sndPage, sndPerPage());
   sndPage = pg.page;
 
-  const filterBar = `<div class="snd-subbar pl-actions">
-    ${Dropdown.html({ opts: 'sfilter', value: sndFilter, key: 'dd-sfilter', attrs: 'data-sfilter-dd', cls: 'dd-compact', title: 'Lọc theo danh mục âm thanh' })}
-    <button class="sub-tab ${sndFilter === 'active' ? 'on' : ''}" data-sfilter="${sndFilter === 'active' ? 'all' : 'active'}">Đang phát${activeCount ? ` (${activeCount})` : ''}</button>
-  </div>`;
-
   const rows = pg.rows.map((x) => {
     const on = x.active, lit = on && A.playing, loading = A.playing && x.loading, v = Math.round(x.volume * 100);
     const sub = loading ? 'Đang tải…' : x.id === 'lofi' && song && on ? esc(song.title) : x.desc;
     const ico = Icons[x.id] || Icons[x.category] || Icons.sound;
     return `<div class="snd-row ${on ? 'on' : ''} ${lit ? 'lit' : ''} ${loading ? 'loading' : ''}" data-key="snd-${x.id}">
-      <button class="snd-row-btn" data-snd="${x.id}" aria-pressed="${on}" title="${on ? 'Tắt' : 'Bật'} ${esc(x.name)}">
-        <span class="snd-thumb" style="--art:url('../img/${x.art || x.id}.jpg')">${ico}</span>
-        <span class="snd-meta"><b>${esc(x.name)}</b><small>${sub}</small></span>
+      <button class="snd-row-btn" data-snd="${x.id}" aria-pressed="${on}" aria-label="${lit ? 'Tạm dừng' : 'Phát'} ${esc(x.name)}" title="${lit ? 'Tạm dừng' : 'Phát'} ${esc(x.name)}">
+        <span class="snd-thumb"><img data-image-fallback src="img/${x.art || x.id}.jpg" alt="">${ico}</span>
+        <span class="snd-state-ico">${lit ? Icons.pause : Icons.play}</span><span class="snd-meta"><b title="${esc(x.name)}">${esc(x.name)}</b><small>${sub}</small></span>
       </button>
-      <button class="icon-btn snd-swell ${x.swell ? 'on' : ''}" data-swell="${x.id}" title="Dâng sóng (Swell)">${Icons.wave}</button>
+      <button class="icon-btn snd-swell ${x.swell ? 'on' : ''}" data-swell="${x.id}" aria-label="Dâng sóng" title="Dâng sóng: ${x.swell ? 'Bật' : 'Tắt'}">${Icons.wave}</button>
       <input type="range" class="vol snd-vol" data-vol="${x.id}" min="0" max="100" value="${v}" style="--v:${v}%" aria-label="Âm lượng ${esc(x.name)}">
     </div>`;
   }).join('');
 
-  return `${filterBar}
-    <div class="snd-list">${rows || '<div class="empty"><b>Chưa bật âm thanh nào</b><button class="btn small" data-do="snd-shuffle">Phát ngẫu nhiên</button></div>'}</div>
-    ${pagerHtml('data-snd-page', pg, `${list.length} kênh`)}`;
+  const empty = sndFilter !== 'all'
+    ? '<div class="empty"><b>Không có kênh khớp</b><button class="btn small" data-sfilter="all">Xoá bộ lọc</button></div>'
+    : '<div class="empty"><b>Chưa có kênh âm thanh</b><button class="btn small" data-do="snd-shuffle">Phát ngẫu nhiên</button></div>';
+  return `<div class="snd-list">${rows || empty}</div>`;
 }
 
 function mixesPaneHtml(A) {
@@ -943,8 +1143,10 @@ function mixesPaneHtml(A) {
   const rows = pg.rows.map((m, idx) => {
     const on = A.activePresetId === m.id;
     const desc = m.channels.map(([id]) => nameOf(id)).join(' · ');
+    const artId = m.channels[0]?.[0] || 'lofi';
     return `<div class="mix-row ${on ? 'on' : ''} ${on && A.playing ? 'lit' : ''}">
       <button class="mix-row-btn" ${m.custom ? `data-cmix="${m.id}"` : `data-apreset="${m.id}"`}>
+        <span class="snd-thumb"><img data-image-fallback src="img/${esc(artId)}.jpg" alt="">${Icons.sound}</span>
         <span class="pl-num num">${on && A.playing ? '▶' : m.custom ? '★' : pg.start + idx + 1}</span>
         <span class="pl-meta"><b>${esc(m.name)}</b><small>${esc(desc)}</small></span>
       </button>
@@ -973,6 +1175,7 @@ function playlistPaneHtml(A, song) {
     const playingNow = current && lofiOn && A.playing;
     return `<div class="pl-row ${current ? 'on' : ''} ${playingNow ? 'lit' : ''}" data-key="pl-${esc(t.id)}">
       <button class="pl-row-btn" data-track="${esc(t.id)}">
+        <span class="snd-thumb"><img data-image-fallback src="img/lofi.jpg" alt="">${Icons.lofi}</span>
         <span class="pl-num num">${playingNow ? '▶' : pg.start + idx + 1}</span>
         <span class="pl-meta"><b>${esc(t.title)}</b><small>${esc(t.artist)}</small></span>
       </button>
@@ -999,6 +1202,17 @@ function youtubePaneHtml(A) {
   const stYt = yt.status || 'closed';
   const open = stYt !== 'closed';
   const isMusic = yt.source === 'YouTube Music';
+
+  if (stYt === 'error' || stYt === 'offline') {
+    const message = yt.error || (stYt === 'offline' ? 'Không có kết nối mạng. Kiểm tra kết nối rồi thử lại.' : 'Không thể tải nội dung YouTube.');
+    return `<div class="yt-pane yt-problem" role="status"><div class="yt-status"><i class="yt-dot error"></i><span>${esc(message)}</span></div>
+      <button class="btn small" data-yt="retry">Thử lại</button></div>`;
+  }
+
+  if (stYt === 'loading') {
+    const rows = Array.from({ length: 5 }, () => '<div class="yt-skeleton-row"><span class="yt-skeleton-thumb"></span><span class="yt-skeleton-copy"><i></i><i></i></span></div>').join('');
+    return `<div class="yt-pane yt-loading" aria-label="Đang tải nội dung YouTube">${rows}</div>`;
+  }
 
   if (!open) {
     return `<div class="yt-pane">
@@ -1065,7 +1279,7 @@ function viewSounds() {
   else leftBody = soundsPaneHtml(A, song);
 
   const mv = Math.round(A.master * 100);
-  const stageArtUrl = ytSynced && yt.artwork ? yt.artwork : `../img/${stageChannel.art || stageChannel.id}.jpg`;
+  const stageArtUrl = ytSynced && yt.artwork ? yt.artwork : `img/${stageChannel.art || stageChannel.id}.jpg`;
   const stageIco = ytSynced ? Icons.lofi : (Icons[stageChannel.id] || Icons[stageChannel.category] || Icons.sound);
   const stageTitle = ytSynced ? (yt.title || yt.source || 'YouTube Audio')
     : (stageChannel.id === 'lofi' && song ? song.title : stageChannel.name);
@@ -1094,40 +1308,36 @@ function viewSounds() {
           <div class="stage-vol-meta num"><span>Không gian: ${panLabel}</span><button class="stage-fade-btn ${stageChannel.swell ? 'on' : ''}" data-swell="${stageChannel.id}">Dâng sóng: ${stageChannel.swell ? 'Bật' : 'Tắt'}</button></div>
         </div>`;
 
+  const mixerRows = activeChannels.map((channel) => {
+    const volume = Math.round(channel.volume * 100);
+    return `<div class="mixer-row"><span title="${esc(channel.name)}">${esc(channel.name)}</span>
+      <input type="range" class="vol" data-vol="${channel.id}" min="0" max="100" value="${volume}" style="--v:${volume}%" aria-label="Âm lượng ${esc(channel.name)}">
+      <button class="icon-btn" data-snd="${channel.id}" aria-label="Gỡ ${esc(channel.name)}" title="Gỡ khỏi mixer">×</button></div>`;
+  }).join('');
+  const mixerPanel = `<aside class="mixer-panel"><h2>Mixer đang phát</h2>
+    <div class="mixer-list">${mixerRows || '<div class="empty"><b>Chưa bật âm thanh nào</b><button class="btn small" data-do="snd-shuffle">Phát ngẫu nhiên</button></div>'}</div>
+    <div class="mixer-setting"><span>Không gian</span><div class="seg"><button>Hẹp</button><button class="on">Vừa</button><button>Rộng</button></div></div>
+    <div class="mixer-setting"><span>Nhỏ dần 10 phút cuối</span><button class="switch ${A.fade === 10 ? 'on' : ''}" data-fade-cycle aria-pressed="${A.fade === 10}"></button></div>
+  </aside>`;
+  const playerPanel = `<div class="snd-stage">
+    <div class="stage-disc-wrap clip-fit ${discLit ? 'lit' : ''}"><div class="stage-art ${discLit ? 'lit' : ''} ${ytSynced && yt.artwork ? 'yt-art' : ''}"><img data-image-fallback src="${esc(stageArtUrl)}" alt=""><span class="stage-ico">${stageIco}</span></div></div>
+    <div class="stage-info"><b title="${esc(stageTitle)}">${esc(stageTitle)}</b><p>${esc(stageSub)}</p></div>${subCtl}
+    <div class="stage-vol"><input type="range" class="vol" data-master min="0" max="100" value="${mv}" style="--v:${mv}%" aria-label="Âm lượng chung"><div class="stage-vol-meta num"><span>Âm lượng nền ${mv}%</span><button class="stage-fade-btn ${A.fade ? 'on' : ''}" data-fade-cycle>${fadeLabel}</button></div></div>
+    <div class="stage-ctl"><button class="icon-btn ${loopMode !== 'all' ? 'on' : ''}" data-do="snd-loop" aria-label="${loopLabel}" title="${loopLabel}">${loopIcon}</button><button class="icon-btn" data-do="${ytSynced ? 'yt-prev' : 'snd-prev'}" aria-label="Bài trước" title="Bài trước">${Icons.prev}</button><button class="stage-play ${discLit ? 'lit' : ''}" data-key="snd-play" data-do="${ytSynced ? 'yt-toggle' : 'snd-play'}" aria-label="${discLit ? 'Tạm dừng' : 'Phát'}">${discLit ? Icons.pause : Icons.play}</button><button class="icon-btn" data-key="skip" data-do="${ytSynced ? 'yt-next' : 'snd-skip'}" aria-label="Bài tiếp theo" title="Bài tiếp theo">${Icons.skip}</button></div>
+  </div>`;
+
   return `<section class="view sounds" data-key="v-sounds">
+    <div class="head sounds-head"><h1>Âm thanh</h1><div class="sounds-page-meta"><span class="page-meta num">${status}</span><button class="icon-btn" data-do="snd-play" aria-label="${A.playing ? 'Tạm dừng tất cả' : 'Phát tất cả'}" title="${A.playing ? 'Tạm dừng tất cả' : 'Phát tất cả'}">${A.playing ? Icons.pause : Icons.play}</button><details class="snd-menu"><summary class="icon-btn" aria-label="Mở menu âm thanh" title="Thêm tuỳ chọn">⋯</summary><div class="pmenu"><button data-do="snd-shuffle">Trộn</button><button class="danger" data-do="snd-clear">Tắt hết</button></div></details></div></div>
     <div class="snd-topbar">
       <div class="snd-tabs">${tabsHtml}</div>
       <div class="snd-tools">
-        <button class="snd-tool" data-do="snd-shuffle" title="Trộn ngẫu nhiên 3 âm thanh">${Icons.shuffle}<span>Trộn</span></button>
-        <button class="snd-tool" data-do="snd-clear" title="Tắt hết âm thanh">${Icons.trash}<span>Tắt hết</span></button>
-        <span class="snd-count num">${status}</span>
+        ${Dropdown.html({ opts: 'sfilter', value: sndFilter, key: 'dd-sfilter', attrs: 'data-sfilter-dd', cls: 'dd-compact', title: 'Lọc theo danh mục âm thanh' })}
+        <button class="filter-toggle ${sndFilter === 'active' ? 'on' : ''}" data-sfilter="${sndFilter === 'active' ? 'all' : 'active'}" aria-pressed="${sndFilter === 'active'}"><span class="switch ${sndFilter === 'active' ? 'on' : ''}"></span>Chỉ đang phát</button>
       </div>
     </div>
     <div class="snd-split">
       <div class="snd-list-pane">${leftBody}</div>
-      <div class="snd-stage">
-        <div class="stage-disc-wrap clip-fit ${discLit ? 'lit' : ''}">
-          <div class="stage-art ${discLit ? 'lit' : ''} ${ytSynced && yt.artwork ? 'yt-art' : ''}" style="--art:url('${stageArtUrl}')">
-            <span class="stage-ico">${stageIco}</span>
-          </div>
-        </div>
-        <div class="stage-info">
-          <b>${esc(stageTitle)}</b>
-          <p>${esc(stageSub)}</p>
-        </div>
-        ${subCtl}
-        <div class="stage-vol">
-          <input type="range" class="vol" data-master min="0" max="100" value="${mv}" style="--v:${mv}%" aria-label="Âm lượng chung">
-          <div class="stage-vol-meta num"><span>Âm lượng nền ${mv}%</span><button class="stage-fade-btn ${A.fade ? 'on' : ''}" data-fade-cycle title="Tự động giảm dần âm lượng trước khi hẹn giờ tắt máy/ngủ kết thúc">${fadeLabel}</button></div>
-        </div>
-        <div class="stage-ctl">
-          <button class="icon-btn ${loopMode !== 'all' ? 'on' : ''}" data-do="snd-loop" title="Chế độ lặp Playlist: ${loopLabel}">${loopIcon}</button>
-          <button class="icon-btn" data-do="${ytSynced ? 'yt-prev' : 'snd-prev'}" title="Bài trước">${Icons.prev}</button>
-          <button class="stage-play ${discLit ? 'lit' : ''}" data-key="snd-play" data-do="${ytSynced ? 'yt-toggle' : 'snd-play'}" aria-label="${discLit ? 'Tạm dừng' : 'Phát'}">${discLit ? Icons.pause : Icons.play}</button>
-          <button class="icon-btn" data-key="skip" data-do="${ytSynced ? 'yt-next' : 'snd-skip'}" title="Bài tiếp theo">${Icons.skip}</button>
-          <button class="icon-btn ${A.fade ? 'on' : ''}" data-fade-cycle title="Tắt dần khi hẹn giờ: ${fadeLabel}">${Icons.fade}</button>
-        </div>
-      </div>
+      ${sndTab === 'playlist' || sndTab === 'youtube' ? playerPanel : mixerPanel}
     </div>
   </section>`;
 }
@@ -1136,12 +1346,12 @@ function viewSounds() {
 function viewPresets() {
   const pg = paged('presets', st.presets);
   const rows = pg.rows.map((p, i) => `
-    <div class="item" data-row data-key="p-${p.id}" style="animation-delay:${i * 40}ms">
+    <div class="item" data-row data-key="p-${p.id}" tabindex="0" style="animation-delay:${i * 40}ms">
       <div class="ico">${Icons[p.action]}</div>
-      <div>${renaming === p.id
-        ? `<div class="pname"><input data-rename-input="${p.id}" value="${esc(p.name)}" maxlength="40"></div>`
+      <div class="pmeta">${renaming === p.id
+        ? `<div class="pname"><input data-rename-input="${p.id}" value="${esc(p.name)}" maxlength="40" aria-label="Đổi tên preset"></div>`
         : `<div class="pname" data-rename="${p.id}" title="${esc(p.name)}">${esc(p.name)}</div>`}
-        <div class="pdesc">${esc(S.ACTIONS[p.action].label)} · ${esc(S.triggerText(p.trigger))}</div></div>
+        <div class="pdesc" title="${esc(S.ACTIONS[p.action].label)} · ${esc(S.triggerText(p.trigger))}">${esc(S.ACTIONS[p.action].label)} · ${esc(S.triggerText(p.trigger))}</div></div>
       <button class="btn ghost small row-act" data-run="${p.id}">${Icons.play} Chạy</button>
       <button class="icon-btn row-more" data-pmenu="${p.id}" aria-label="Tuỳ chọn cho ${esc(p.name)}" title="Tuỳ chọn">⋯</button>
     </div>`).join('');
@@ -1155,29 +1365,41 @@ function viewPresets() {
 // ---------- 03 Lịch lặp ----------
 function viewSchedules() {
   const days = (arr, id) => [1, 2, 3, 4, 5, 6, 0].map((d) =>
-    `<button class="day ${arr.includes(d) ? 'on' : ''}" ${id ? `data-sday="${id}:${d}"` : `data-nday="${d}"`}>${S.DAYS[d]}</button>`).join('');
+    `<button class="day ${arr.includes(d) ? 'on' : ''}" ${id ? `data-sday="${id}:${d}"` : `data-nday="${d}"`} aria-pressed="${arr.includes(d)}">${S.DAYS[d]}</button>`).join('');
   const pg = paged('schedules', st.schedules);
   const rows = pg.rows.map((sc, i) => {
     const next = snap?.next?.find((n) => n.id === sc.id)?.at;
-    return `<div class="item ${sc.enabled ? '' : 'off'}" data-row data-key="s-${sc.id}" style="animation-delay:${i * 40}ms">
-      <span class="stime num">${sc.time}</span>
+    const [sh, sm] = sc.time.split(':');
+    const timeEl = editingSched === sc.id
+      ? `<div class="time-in stime-edit" data-stime-edit="${sc.id}"><input class="num" data-se="h" data-max="23" value="${esc(sh)}" maxlength="2" aria-label="Giờ"><span class="sep">:</span><input class="num" data-se="m" data-max="59" value="${esc(sm)}" maxlength="2" aria-label="Phút"></div>`
+      : `<span class="stime num" data-sedit="${sc.id}" title="Nhấp đúp để sửa giờ">${sc.time}</span>`;
+    return `<div class="item ${sc.enabled ? '' : 'off'}" data-row data-key="s-${sc.id}" tabindex="0" style="animation-delay:${i * 40}ms">
+      ${timeEl}
       <div class="sinfo"><div class="days">${days(sc.days, sc.id)}</div>
         <div class="pdesc">${sc.enabled ? (next ? `Lần tiếp theo: ${S.dayWord(next)} ${S.hhmm(next)}` : 'Chưa chọn ngày') : 'Đã tắt'}</div></div>
       ${Dropdown.html({ opts: 'action', value: sc.action, key: `dd-s-${sc.id}`, attrs: `data-sact-row="${sc.id}"`, cls: 'dd-row', title: 'Hành động' })}
-      <button class="switch ${sc.enabled ? 'on' : ''}" data-stoggle="${sc.id}" title="Bật/tắt"></button>
-      <button class="icon-btn" data-sdel="${sc.id}" title="Xoá">${Icons.trash}</button>
+      <button class="switch ${sc.enabled ? 'on' : ''}" data-stoggle="${sc.id}" aria-pressed="${sc.enabled}" aria-label="${sc.enabled ? 'Tắt' : 'Bật'} lịch ${sc.time}" title="Bật/tắt"></button>
+      <button class="icon-btn row-more" data-smenu="${sc.id}" aria-label="Tuỳ chọn cho lịch ${sc.time}" title="Tuỳ chọn">⋯</button>
     </div>`;
   }).join('');
+  const notice = st.settings.autostart ? '' : `<div class="inline-notice" role="status">
+    <span class="notice-ico" aria-hidden="true">${Icons.alert}</span>
+    <span>Sleepy phải đang chạy để thực hiện lịch.</span>
+    <button class="btn small" data-set="autostart" data-val="true" data-autostart-cta>Bật khởi động cùng hệ thống</button>
+  </div>`;
   return `<section class="view sched" data-key="v-schedules">
     <div class="head"><h1>Lịch lặp</h1><span class="page-meta num">${st.schedules.filter((s) => s.enabled).length} lịch đang bật</span></div>
+    ${notice}
+    <h2 class="sec-h2">Lịch mới</h2>
     <div class="card adder">
-      <div><div class="label">Giờ</div><div class="time-in"><input class="num" data-dial="sched.h" data-max="23" value="${pad(sched.h)}" maxlength="2"><span class="sep">:</span><input class="num" data-dial="sched.m" data-max="59" value="${pad(sched.m)}" maxlength="2"></div></div>
+      <div><div class="label">Giờ</div><div class="time-in"><input class="num" data-dial="sched.h" data-max="23" value="${pad(sched.h)}" maxlength="2" aria-label="Giờ lịch mới"><span class="sep">:</span><input class="num" data-dial="sched.m" data-max="59" value="${pad(sched.m)}" maxlength="2" aria-label="Phút lịch mới"></div></div>
       <div><div class="label">Ngày</div><div class="days">${days(sched.days)}</div></div>
       <div><div class="label" id="lbl-sact">Hành động</div>${Dropdown.html({ opts: 'action', value: sched.action, key: 'dd-new', attrs: 'data-sact', labelledby: 'lbl-sact' })}</div>
       <button class="btn primary" data-do="sched-add" title="Thêm lịch">${Icons.plus}<span>Thêm lịch</span></button>
     </div>
-    <div class="list fit" data-fit="schedules">${rows || '<div class="empty">Chưa có lịch. Chọn thời gian, ngày và hành động để tạo lịch mới.</div>'}</div>
-    <div class="foot"><p class="note">Sleepy phải đang chạy để thực hiện lịch.${st.settings.autostart ? '' : ' <button class="link-btn" data-set="autostart" data-val="true">Bật khởi động cùng hệ thống</button>'}</p>${pager('schedules', pg)}</div>
+    <h2 class="sec-h2">Lịch đã tạo</h2>
+    <div class="list fit" data-fit="schedules">${rows || '<div class="empty"><b>Chưa có lịch</b><p>Tự động tắt máy vào giờ cố định mỗi ngày.</p></div>'}</div>
+    ${pg.count > 1 ? `<div class="foot">${pager('schedules', pg)}</div>` : ''}
   </section>`;
 }
 
@@ -1191,68 +1413,78 @@ function viewHistory() {
     pending: '<span class="tag">…</span>',
   };
   const filtered = histFilter === 'all' ? st.history : st.history.filter((h) => h.result === histFilter);
+  const filterLabel = HIST_FILTERS.find((f) => f.value === histFilter)?.label || histFilter;
   const pg = paged('history', filtered);
   const rows = pg.rows.map((h) => {
     const d = new Date(h.at);
     const src = sourceLabel(h.source);
-    return `<tr data-row data-key="h-${h.id}"><td class="num">${pad(d.getDate())}/${pad(d.getMonth() + 1)} · ${S.hhmm(h.at)}</td>
-      <td><b>${S.ACTIONS[h.action]?.label || h.action}</b><div class="sub">${esc(S.triggerText(h.trigger))}</div></td>
+    const noteHtml = h.note && h.note !== 'Đã huỷ' ? `<div class="sub" title="${esc(h.note)}">${esc(h.note)}</div>` : '';
+    const fixHtml = h.result === 'error' ? `<button class="link-btn err-help" data-err-help="${esc(h.note || '')}">Cách khắc phục</button>` : '';
+    return `<tr data-row data-key="h-${h.id}"><td class="num c-time">${pad(d.getDate())}/${pad(d.getMonth() + 1)} · ${S.hhmm(h.at)}</td>
+      <td class="c-act"><b>${S.ACTIONS[h.action]?.label || h.action}</b><div class="sub">${esc(S.triggerText(h.trigger))}</div></td>
       <td class="dim c-src" title="${esc(src)}">${esc(src)}</td>
-      <td>${badge[h.result] || ''}${h.note && h.note !== 'Đã huỷ' ? `<div class="sub" title="${esc(h.note)}">${esc(h.note)}</div>` : ''}</td></tr>`;
+      <td class="c-res">${badge[h.result] || ''}${noteHtml}${fixHtml}</td></tr>`;
   }).join('');
-  const filters = [['all', 'Tất cả'], ['done', 'Đã thực hiện'], ['cancel', 'Đã huỷ'], ['error', 'Lỗi'], ['dry', 'Chạy thử']]
-    .map(([k, l]) => `<button class="sub-tab ${histFilter === k ? 'on' : ''}" data-hfilter="${k}">${l}</button>`).join('');
   return `<section class="view" data-key="v-history">
     <div class="head"><h1>Nhật ký</h1>
-      <div class="head-actions"><div class="hist-filters">${filters}</div>${st.history.length ? '<button class="btn ghost small" data-do="hist-clear">Xoá nhật ký…</button>' : ''}</div></div>
-    <div class="fit" data-fit="history">${rows ? `<table class="hist"><colgroup><col class="c-time"><col><col class="c-src"><col class="c-res"></colgroup>
-      <thead><tr><th>Thời gian</th><th>Hành động</th><th class="c-src">Nguồn</th><th>Kết quả</th></tr></thead><tbody>${rows}</tbody></table>`
+      <div class="head-actions">
+        ${Dropdown.html({ opts: 'hfilter', value: histFilter, key: 'dd-hfilter', attrs: 'data-hfilter-dd', cls: 'dd-compact dd-hfilter', title: 'Lọc theo kết quả' })}
+        ${st.history.length ? '<button class="icon-btn row-more" data-hmenu aria-label="Tuỳ chọn nhật ký" title="Tuỳ chọn">⋯</button>' : ''}
+      </div></div>
+    <div class="fit" data-fit="history">${rows ? `<table class="hist">
+      <thead><tr><th class="c-time">Thời gian</th><th class="c-act">Hành động</th><th class="c-src">Nguồn</th><th class="c-res">Kết quả</th></tr></thead><tbody>${rows}</tbody></table>`
       : histFilter !== 'all'
-        ? '<div class="empty"><b>Không có mục khớp bộ lọc</b><button class="btn small" data-hfilter="all">Xoá bộ lọc</button></div>'
+        ? `<div class="empty"><b>Không có mục ${esc(filterLabel)}</b><button class="btn small" data-hfilter="all">Xem tất cả</button></div>`
         : '<div class="empty"><b>Chưa có hoạt động</b><p>Mỗi lần hẹn giờ chạy, bị huỷ hoặc lỗi sẽ hiện ở đây.</p></div>'}</div>
     ${pg.count > 1 ? `<div class="foot">${pager('history', pg)}</div>` : ''}
   </section>`;
 }
 
 // ---------- 05 Cài đặt ----------
+const DATA_PATH = '~/.config/dev.giabao.sleepy/sleepy.json';
 function seg(key, opts) {
   const v = st.settings[key];
   return `<div class="seg" data-morph-keep="style">${opts.map(([val, l]) => `<button class="${v === val ? 'on' : ''}" data-set="${key}" data-val='${JSON.stringify(val)}'>${l}</button>`).join('')}</div>`;
 }
-function sw(key) { return `<button class="switch ${st.settings[key] ? 'on' : ''}" data-set="${key}" data-val='${JSON.stringify(!st.settings[key])}'></button>`; }
-function setRow(title, desc, ctl) { return `<div class="set"><div><b>${title}</b>${desc ? `<p>${desc}</p>` : ''}</div>${ctl}</div>`; }
+function sw(key, label = '') { return `<button class="switch ${st.settings[key] ? 'on' : ''}" data-set="${key}" data-val='${JSON.stringify(!st.settings[key])}' aria-pressed="${!!st.settings[key]}"${label ? ` aria-label="${esc(label)}"` : ''}></button>`; }
+function setRow(title, desc, ctl) { return `<div class="set"><div class="set-info"><b>${title}</b>${desc ? `<p>${desc}</p>` : ''}</div><div class="set-ctl">${ctl}</div></div>`; }
 function viewSettings() {
   const capWord = { yes: ['Được', 'yes'], challenge: ['Cần mật khẩu', ''], no: ['Không', 'no'], na: ['Không hỗ trợ', 'no'], unknown: ['Chưa rõ', ''] };
-  const g = (k) => `card group${setTab === k ? ' cur' : ''}" data-g="${k}`;
   return `<section class="view settings" data-key="v-settings">
-    <div class="head"><h1>Cài đặt</h1>
-      <div class="seg stabs" data-morph-keep="style">${[['warn', 'Cảnh báo'], ['app', 'Ứng dụng'], ['adv', 'Nâng cao']]
-        .map(([k, l]) => `<button class="${setTab === k ? 'on' : ''}" data-stab="${k}">${l}</button>`).join('')}</div></div>
+    <div class="head"><h1>Cài đặt</h1></div>
     <div class="groups">
-    <div class="${g('warn')}"><h2>Cảnh báo</h2>
-      ${setRow('Báo trước', 'Hiển thị cửa sổ cảnh báo trước khi thực hiện hành động.', seg('warnMinutes', [[0, 'Không'], [1, '1 phút'], [2, '2 phút'], [5, '5 phút'], [10, '10 phút']]))}
-      ${setRow('Thời gian chờ sau điều kiện', 'Khoảng trì hoãn sau khi điều kiện được đáp ứng.', seg('graceSeconds', [[30, '30 giây'], [60, '60 giây'], [120, '2 phút']]))}
-      ${setRow('Âm báo', 'Phát âm thanh khi cảnh báo và trong 10 giây cuối.', sw('sound'))}
-      <div class="set ${st.settings.dryRun ? 'set-warn' : ''}"><div><b>Chế độ thử</b><p>Chỉ hiển thị thông báo, không thực hiện hành động hệ thống.</p></div>${sw('dryRun')}</div>
+      <div class="card group" data-g="warn"><h2>Cảnh báo</h2>
+        ${setRow('Báo trước', 'Hiển thị cửa sổ cảnh báo trước khi thực hiện hành động.', seg('warnMinutes', [[0, 'Không'], [1, '1 phút'], [2, '2 phút'], [5, '5 phút'], [10, '10 phút']]))}
+        ${setRow('Thời gian chờ sau điều kiện', 'Khoảng trì hoãn sau khi điều kiện được đáp ứng.', seg('graceSeconds', [[30, '30 giây'], [60, '60 giây'], [120, '2 phút']]))}
+        ${setRow('Âm báo', 'Phát âm thanh khi cảnh báo và trong 10 giây cuối.', sw('sound', 'Âm báo'))}
+      </div>
+      <div class="card group" data-g="app"><h2>Ứng dụng</h2>
+        ${setRow('Giao diện', 'Chọn giao diện hiển thị.', seg('theme', [['dark', 'Tối'], ['light', 'Sáng'], ['system', 'Theo hệ thống']]))}
+        ${setRow('Giữ hệ thống hoạt động', 'Ngăn màn hình tắt và hệ thống tự chuyển sang chế độ ngủ khi hẹn giờ đang chạy.', sw('keepAwake', 'Giữ hệ thống hoạt động'))}
+        ${setRow('Thu nhỏ vào khay khi đóng', 'Tiếp tục chạy hẹn giờ khi cửa sổ chính đóng.', sw('closeToTray', 'Thu nhỏ vào khay khi đóng'))}
+        ${setRow('Khởi động cùng hệ thống', 'Khởi động Sleepy sau khi đăng nhập.', sw('autostart', 'Khởi động cùng hệ thống'))}
+        ${setRow('Khởi động ở chế độ thu nhỏ', 'Mở ứng dụng ở trạng thái thu nhỏ vào khay.', sw('startMinimized', 'Khởi động ở chế độ thu nhỏ'))}
+      </div>
+      <div class="card group" data-g="adv"><h2>Nâng cao</h2>
+        <div class="set ${st.settings.dryRun ? 'set-warn' : ''}"><div class="set-info"><b>Chế độ thử</b><p>Chỉ hiển thị thông báo, không thực hiện hành động hệ thống.</p></div><div class="set-ctl">${sw('dryRun', 'Chế độ thử')}</div></div>
+        ${setRow('Lệnh chạy trước', 'Thực thi lệnh trước hành động, với thời gian chờ tối đa 30 giây. Ví dụ: <span class="mono-inline">playerctl pause</span>.', `<input class="mono" data-text="preCommand" value="${esc(st.settings.preCommand)}" placeholder="Để trống nếu không sử dụng" spellcheck="false" aria-label="Lệnh chạy trước">`)}
+        <div class="set set-block"><b>Quyền thực hiện hành động</b>
+          <div class="caps">${ORDER.map((k) => { const c = capWord[st.caps?.[k]] || capWord.unknown; return `<div><span>${S.ACTIONS[k].label}</span><span class="${c[1]}">${c[0]}</span></div>`; }).join('')}</div></div>
+        ${setRow('Dữ liệu', `<span class="mono-inline">${DATA_PATH}</span>`, `<button class="btn small" data-do="copy-data-path">${Icons.copy}<span>Sao chép đường dẫn</span></button>`)}
+      </div>
+      <p class="note ver">Sleepy 2.0</p>
     </div>
-    <div class="${g('app')}"><h2>Ứng dụng</h2>
-      ${setRow('Giao diện', 'Chọn giao diện hiển thị.', seg('theme', [['dark', 'Tối'], ['light', 'Sáng'], ['system', 'Theo hệ thống']]))}
-      ${setRow('Giữ hệ thống hoạt động', 'Ngăn màn hình tắt và hệ thống tự chuyển sang chế độ ngủ khi hẹn giờ đang chạy.', sw('keepAwake'))}
-      ${setRow('Thu nhỏ vào khay khi đóng', 'Tiếp tục chạy hẹn giờ khi cửa sổ chính đóng.', sw('closeToTray'))}
-      ${setRow('Khởi động cùng hệ thống', 'Khởi động Sleepy sau khi đăng nhập.', sw('autostart'))}
-      ${setRow('Khởi động ở chế độ thu nhỏ', 'Mở ứng dụng ở trạng thái thu nhỏ vào khay.', sw('startMinimized'))}
-    </div>
-    <div class="${g('adv')}"><h2>Nâng cao</h2>
-      ${setRow('Lệnh chạy trước', 'Thực thi lệnh trước hành động, với thời gian chờ tối đa 30 giây. Ví dụ: <span style="font-family:var(--mono)">playerctl pause</span>.', `<input class="mono" data-text="preCommand" value="${esc(st.settings.preCommand)}" placeholder="Để trống nếu không sử dụng" spellcheck="false">`)}
-      <div class="set" style="display:block"><b>Quyền thực hiện hành động</b>
-        <div class="caps" style="margin-top:10px">${ORDER.map((k) => { const c = capWord[st.caps?.[k]] || capWord.unknown; return `<div><span>${S.ACTIONS[k].label}</span><span class="${c[1]}">${c[0]}</span></div>`; }).join('')}</div></div>
-    </div>
-    </div>
-    <p class="note ver">Sleepy 2.0 · dữ liệu lưu tại ~/.config/dev.giabao.sleepy/sleepy.json</p>
   </section>`;
 }
 
 // ---------- Sự kiện ----------
+document.addEventListener('error', (event) => {
+  const image = event.target;
+  if (!(image instanceof HTMLImageElement) || !image.hasAttribute('data-image-fallback')) return;
+  image.parentElement?.classList.add('image-failed');
+  image.remove();
+}, true);
+
 async function start(action, trig, source) {
   const r = await sleepy.start(action, trig, source);
   if (!r.ok || r.error) toast(r.error, true); else toast(`Đã tạo hẹn giờ: ${S.describe(action, trig)}.`);
@@ -1261,8 +1493,8 @@ document.addEventListener('click', async (e) => {
   const t = e.target.closest('button, [data-rename], .mini');
   if (!t) return;
   const ds = t.dataset;
-  if ('toastClose' in ds) { $('#toast').className = 'toast'; return; }
-  if ('toastAct' in ds) { const fn = $('#toast')._act; $('#toast').className = 'toast'; if (fn) fn(); return; }
+  if ('toastClose' in ds) { clearToast(); return; }
+  if ('toastAct' in ds) { const fn = $('#toast')._act; clearToast(); if (fn) fn(); return; }
   if ('holdNow' in ds) {
     if (t._heldDone) { t._heldDone = false; return; }
     if (e.detail === 0) {
@@ -1274,7 +1506,7 @@ document.addEventListener('click', async (e) => {
     return;
   }
   if (ds.win) return sleepy.win(ds.win);
-  if (ds.view) { if (view === ds.view) return; view = ds.view; savingPreset = false; renaming = null; if (view === 'timer' && draft.type === 'process') loadProcs(); return render(); }
+  if (ds.view) { if (view === ds.view) return; view = ds.view; savingPreset = false; renaming = null; editingSched = null; if (view === 'timer' && draft.type === 'process') loadProcs(); return render(); }
   if (ds.action) { if (draft.action === ds.action) return; draft.action = ds.action; saveDraft(); return render(); }
   if (ds.mode) { const type = ds.mode === 'cond' ? (draft.condType || 'idle') : ds.mode; if (draft.type === type) return; draft.type = type; saveDraft(); if (draft.type === 'process') loadProcs(); return render(); }
   if (ds.type) { if (draft.type === ds.type) return; draft.type = ds.type; draft.condType = ds.type; saveDraft(); if (ds.type === 'process') loadProcs(); return render(); }
@@ -1301,7 +1533,8 @@ document.addEventListener('click', async (e) => {
   }
   if (ds.yt) {
     try {
-      if (ds.yt === 'hide') await Ambient.ytHide();
+      if (ds.yt === 'retry') { focusedSnd = 'youtube'; await Ambient.ytOpen(Ambient.yt.source === 'YouTube Music' ? 'music' : 'youtube'); }
+      else if (ds.yt === 'hide') await Ambient.ytHide();
       else if (ds.yt === 'close') await Ambient.ytClose();
       else if (ds.yt === 'show') { focusedSnd = 'youtube'; await Ambient.ytOpen(Ambient.yt.source === 'YouTube Music' ? 'music' : 'youtube'); }
       else { focusedSnd = 'youtube'; await Ambient.ytOpen(ds.yt); }
@@ -1312,24 +1545,17 @@ document.addEventListener('click', async (e) => {
   if (ds.fade) return Ambient.setFade(+ds.fade);
   if (ds.hfilter) { histFilter = ds.hfilter; pages.history.page = 0; return render(); }
   if (ds.pmenu) { const p = st.presets.find((x) => x.id === ds.pmenu); if (p) openPresetMenu(t, p); return; }
-  if (ds.stab) { setTab = ds.stab; return render(); }
+  if (ds.smenu) { const sc = st.schedules.find((x) => x.id === ds.smenu); if (sc) openScheduleMenu(t, sc); return; }
+  if ('hmenu' in ds) { openHistoryMenu(t); return; }
+  if ('errHelp' in ds) { openErrorHelp(t, ds.errHelp); return; }
   if (ds.page) { const [k, d] = ds.page.split(':'); pages[k].page += +d; return render(); }
   if (ds.run) { const p = st.presets.find((x) => x.id === ds.run); if (p) { await start(p.action, p.trigger, `preset:${p.id}`); view = 'timer'; render(); } return; }
-  if (ds.delPreset) {
-    const prev = [...st.presets];
-    const removed = prev.find((p) => p.id === ds.delPreset);
-    await sleepy.setPresets(prev.filter((p) => p.id !== ds.delPreset));
-    if (removed) {
-      toast(`Đã xoá preset "${removed.name}".`, {
-        action: 'Hoàn tác',
-        undo: () => sleepy.setPresets(prev).then(() => toast(`Đã khôi phục "${removed.name}".`)),
-      });
-    }
-    return;
-  }
+  if (ds.delPreset) { return deletePreset(ds.delPreset); }
   if (ds.set) {
     try {
-      return await sleepy.setSettings({ [ds.set]: JSON.parse(ds.val) });
+      await sleepy.setSettings({ [ds.set]: JSON.parse(ds.val) });
+      if ('autostartCta' in ds) toast('Đã bật khởi động cùng hệ thống');
+      return;
     } catch (error) {
       return toast(String(error), true);
     }
@@ -1340,18 +1566,7 @@ document.addEventListener('click', async (e) => {
     return sleepy.setSchedules(st.schedules.map((s) => s.id !== id ? s : { ...s, days: s.days.includes(+d) ? s.days.filter((x) => x !== +d) : [...s.days, +d], lastArmed: 0 }));
   }
   if (ds.stoggle) return sleepy.setSchedules(st.schedules.map((s) => s.id === ds.stoggle ? { ...s, enabled: !s.enabled, lastArmed: 0 } : s));
-  if (ds.sdel) {
-    const prev = [...st.schedules];
-    const removed = prev.find((s) => s.id === ds.sdel);
-    await sleepy.setSchedules(prev.filter((s) => s.id !== ds.sdel));
-    if (removed) {
-      toast(`Đã xoá lịch ${removed.time}.`, {
-        action: 'Hoàn tác',
-        undo: () => sleepy.setSchedules(prev).then(() => toast(`Đã khôi phục lịch ${removed.time}.`)),
-      });
-    }
-    return;
-  }
+  if (ds.sdel) { return deleteSchedule(ds.sdel); }
   switch (ds.do) {
     case 'start': return start(draft.action, trigger(), 'manual');
     case 'cancel': {
@@ -1417,13 +1632,55 @@ document.addEventListener('click', async (e) => {
       await sleepy.setSchedules([...st.schedules, { id, time: `${pad(sched.h)}:${pad(sched.m)}`, days: [...sched.days].sort(), action: sched.action, enabled: true, lastArmed: 0 }]);
       return toast(`Đã thêm lịch ${pad(sched.h)}:${pad(sched.m)}`);
     }
+    case 'copy-data-path': {
+      try {
+        await navigator.clipboard.writeText(DATA_PATH);
+        toast('Đã sao chép đường dẫn dữ liệu');
+      } catch {
+        toast(`Đường dẫn: ${DATA_PATH}`);
+      }
+      return;
+    }
   }
 });
-document.addEventListener('dblclick', (e) => { const t = e.target.closest('[data-rename]'); if (t) { renaming = t.dataset.rename; render(); } });
+document.addEventListener('dblclick', (e) => {
+  const r = e.target.closest('[data-rename]');
+  if (r) { renaming = r.dataset.rename; render(); return; }
+  const s = e.target.closest('[data-sedit]');
+  if (s) {
+    editingSched = s.dataset.sedit;
+    render();
+    const inp = $(`[data-stime-edit="${editingSched}"] input[data-se="h"]`);
+    if (inp) { inp.focus({ preventScroll: true }); inp.select(); }
+  }
+});
 function commitRename(input) {
   const name = input.value.trim(), id = input.dataset.renameInput;
   renaming = null;
-  if (name) sleepy.setPresets(st.presets.map((p) => p.id === id ? { ...p, name } : p)); else render();
+  if (name) {
+    const next = st.presets.map((p) => p.id === id ? { ...p, name } : p);
+    st.presets = next;
+    sleepy.setPresets(next);
+    render();
+  } else render();
+}
+function commitSchedTime(box) {
+  const id = box?.dataset.stimeEdit;
+  if (!id || editingSched !== id) return;
+  const hIn = box.querySelector('input[data-se="h"]');
+  const mIn = box.querySelector('input[data-se="m"]');
+  const h = Math.max(0, Math.min(23, parseInt(hIn?.value, 10) || 0));
+  const m = Math.max(0, Math.min(59, parseInt(mIn?.value, 10) || 0));
+  const time = `${pad(h)}:${pad(m)}`;
+  editingSched = null;
+  const cur = st.schedules.find((s) => s.id === id);
+  if (cur && cur.time !== time) {
+    const next = st.schedules.map((s) => s.id === id ? { ...s, time, lastArmed: 0 } : s);
+    st.schedules = next;
+    sleepy.setSchedules(next);
+    toast(`Đã đổi giờ lịch thành ${time}`);
+  }
+  render();
 }
 async function savePreset() {
   const name = $('#preset-name')?.value.trim();
@@ -1457,17 +1714,32 @@ document.addEventListener('input', (e) => {
     return;
   }
   if (t.dataset.dial) { t.value = t.value.replace(/\D/g, '').slice(0, 2); setDial(t, parseInt(t.value, 10)); dialChanged(); }
+  else if (t.dataset.se) { t.value = t.value.replace(/\D/g, '').slice(0, 2); }
   else if (t.dataset.field) {
     const [scope, key] = t.dataset.field.split('.');
     if (key === 'name') { draft[scope][key] = t.value; procRunning = null; checkProc(); }
-    else { t.value = t.value.replace(/\D/g, '').slice(0, 5); draft[scope][key] = Math.max(1, parseInt(t.value, 10) || 1); }
-    saveDraft(); updateSummary(); renderDial();
+    else { t.value = t.value.replace(/\D/g, '').slice(0, 5); draft[scope][key] = t.value === '' ? Number.NaN : parseInt(t.value, 10); }
+    const issue = conditionError();
+    const error = $('.field-error');
+    if (error) { error.textContent = issue; error.hidden = !issue; }
+    const startButton = $('[data-do="start"]');
+    if (startButton) { startButton.disabled = !!issue; startButton.title = issue; }
+    if (key === 'name' || !issue) saveDraft();
+    updateSummary(); renderDial();
   }
 });
 document.addEventListener('change', (e) => {
   const t = e.target;
   if (t.dataset.text) sleepy.setSettings({ [t.dataset.text]: t.value });
+  if ('sleepSound' in t.dataset) {
+    const value = t.dataset.value;
+    if (value === 'open') { view = 'sounds'; render(); return; }
+    sleepSound = value;
+    if (value === 'none') Ambient.clearAll();
+    else Ambient.applyPreset(value.slice('preset:'.length));
+  }
   if ('sfilterDd' in t.dataset) { sndFilter = t.dataset.value; sndPage = 0; render(); }
+  if ('hfilterDd' in t.dataset) { histFilter = t.dataset.value; pages.history.page = 0; render(); }
   if ('sact' in t.dataset) sched.action = t.dataset.value;
   if (t.dataset.sactRow) {
     const id = t.dataset.sactRow, action = t.dataset.value;
@@ -1478,91 +1750,162 @@ document.addEventListener('focusout', (e) => {
   const t = e.target;
   if (t.dataset.dial) { t.value = fmtDial(t, setDial(t, parseInt(t.value, 10))); dialChanged(); }
   if (t.dataset.renameInput) commitRename(t);
+  if (t.dataset.se) {
+    const box = t.closest('[data-stime-edit]');
+    setTimeout(() => { if (box?.isConnected && !box.contains(document.activeElement)) commitSchedTime(box); }, 0);
+  }
   if (t.dataset.field && t.dataset.field !== 'process.name') { const [a, b] = t.dataset.field.split('.'); t.value = draft[a][b]; }
 });
-document.addEventListener('focusin', (e) => { if (e.target.dataset.dial) e.target.select(); });
+document.addEventListener('focusin', (e) => { if (e.target.dataset.dial || e.target.dataset.se) e.target.select(); });
 function stepDial(t, dir) {
   const max = +t.dataset.max;
   let v = (parseInt(t.value, 10) || 0) + dir;
   if (v > max) v = 0; if (v < 0) v = max;
   t.value = fmtDial(t, setDial(t, v)); dialChanged();
 }
-document.addEventListener('wheel', (e) => { const t = e.target.closest('[data-dial]'); if (!t) return; e.preventDefault(); stepDial(t, e.deltaY < 0 ? 1 : -1); }, { passive: false });
+document.addEventListener('wheel', (e) => {
+  const chips = e.target.closest('.stage > .chips');
+  if (chips && chips.scrollWidth > chips.clientWidth) { e.preventDefault(); chips.scrollLeft += e.deltaY || e.deltaX; return; }
+  const t = e.target.closest('[data-dial]');
+  if (!t) return;
+  e.preventDefault(); stepDial(t, e.deltaY < 0 ? 1 : -1);
+}, { passive: false });
 // Command palette (Ctrl+K) & bảng phím tắt (?)
 let paletteEl = null;
-function closePalette() {
+let palettePrevFocus = null;
+function closePalette(restoreFocus = true) {
   if (!paletteEl) return;
   paletteEl.remove();
   paletteEl = null;
+  const prev = palettePrevFocus;
+  palettePrevFocus = null;
+  if (restoreFocus && prev?.isConnected) prev.focus({ preventScroll: true });
 }
 function openShortcutsHelp() {
-  closePalette();
+  const prev = palettePrevFocus || document.activeElement;
+  closePalette(false);
+  palettePrevFocus = prev;
   const ov = document.createElement('div');
   ov.className = 'pal-bg';
-  ov.innerHTML = `<div class="pal" role="dialog" aria-label="Phím tắt">
+  ov.innerHTML = `<div class="pal" role="dialog" aria-modal="true" aria-label="Phím tắt">
     <div class="pal-head"><b>Phím tắt</b><button class="toast-x" data-pal-close aria-label="Đóng">×</button></div>
     <div class="pal-keys">
       <div><span>Chuyển màn hình</span><kbd>Ctrl+1…6</kbd></div>
       <div><span>Mở bảng lệnh nhanh</span><kbd>Ctrl+K</kbd></div>
+      <div><span>Mở bảng phím tắt</span><kbd>?</kbd></div>
       <div><span>Bắt đầu hẹn giờ</span><kbd>Ctrl+Enter</kbd></div>
       <div><span>Chọn nhanh mốc thời gian</span><kbd>1…7</kbd></div>
-      <div><span>Huỷ hẹn giờ đang chạy</span><kbd>Esc</kbd></div>
+      <div><span>Huỷ hẹn giờ đang chạy</span><kbd>Ctrl+.</kbd></div>
       <div><span>Phát / tạm dừng âm thanh</span><kbd>Space</kbd></div>
       <div><span>Hoàn tác lần xoá/huỷ gần nhất</span><kbd>Ctrl+Z</kbd></div>
       <div><span>Đổi tên preset đang chọn</span><kbd>F2</kbd></div>
+      <div><span>Xoá mục đang chọn</span><kbd>Delete</kbd></div>
     </div>
   </div>`;
   document.body.appendChild(ov);
   paletteEl = ov;
-  ov.addEventListener('click', (e) => { if (e.target === ov || e.target.closest('[data-pal-close]')) closePalette(); });
-  ov.querySelector('[data-pal-close]').focus({ preventScroll: true });
+  const closeBtn = ov.querySelector('[data-pal-close]');
+  ov.addEventListener('click', (e) => { if (e.target === ov || e.target.closest('[data-pal-close]')) closePalette(true); });
+  ov.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); closePalette(true); }
+    else if (e.key === 'Tab') { e.preventDefault(); closeBtn.focus(); }
+  });
+  closeBtn.focus({ preventScroll: true });
 }
 function openCommandPalette() {
-  if (paletteEl) { closePalette(); return; }
+  if (paletteEl) { closePalette(true); return; }
+  palettePrevFocus = document.activeElement;
   const items = [
-    ...VIEWS.map(([k, l], i) => ({ label: `Đi tới ${l}`, hint: `Ctrl+${i + 1}`, run: () => { view = k; savingPreset = false; render(); } })),
-    ...(st?.presets || []).map((p) => ({ label: `Chạy preset: ${p.name}`, hint: S.ACTIONS[p.action]?.label || '', run: () => { start(p.action, p.trigger, `preset:${p.id}`); view = 'timer'; render(); } })),
-    { label: Ambient.playing ? 'Tạm dừng âm thanh nền' : 'Phát âm thanh nền', hint: 'Space', run: () => Ambient.togglePlay() },
-    { label: 'Trộn ngẫu nhiên 3 âm thanh', hint: 'Âm thanh', run: () => { Ambient.shuffle(); view = 'sounds'; render(); } },
-    { label: 'Tắt hết âm thanh nền', hint: 'Âm thanh', run: () => Ambient.clearAll() },
-    { label: 'Đổi giao diện Sáng / Tối', hint: 'Cài đặt', run: () => sleepy.setSettings({ theme: document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark' }) },
-    { label: 'Xem bảng phím tắt', hint: '?', run: () => openShortcutsHelp() },
+    ...VIEWS.map(([k, l], i) => ({ group: 'Điều hướng', label: `Đi tới ${l}`, kbd: `Ctrl+${i + 1}`, run: () => { view = k; savingPreset = false; renaming = null; editingSched = null; render(); } })),
+    { group: 'Điều hướng', label: 'Đổi giao diện Sáng / Tối', meta: 'Cài đặt', run: () => sleepy.setSettings({ theme: document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark' }) },
+    { group: 'Điều hướng', label: 'Xem bảng phím tắt', kbd: '?', run: () => openShortcutsHelp() },
+    ...(snap?.job
+      ? [{ group: 'Hẹn giờ', label: 'Huỷ hẹn giờ đang chạy', kbd: 'Ctrl+.', run: () => {
+        const prevJob = { action: snap.job.action, trigger: snap.job.trigger, source: snap.job.source };
+        sleepy.cancel().then(() => toast('Đã huỷ hẹn giờ', { action: 'Hoàn tác', undo: () => start(prevJob.action, prevJob.trigger, prevJob.source) }));
+      } }]
+      : [{ group: 'Hẹn giờ', label: 'Bắt đầu hẹn giờ', kbd: 'Ctrl+Enter', run: () => { view = 'timer'; render(); start(draft.action, trigger(), 'manual'); } }]),
+    ...(st?.presets || []).map((p) => ({ group: 'Preset', label: p.name, meta: S.ACTIONS[p.action]?.label || '', run: () => { start(p.action, p.trigger, `preset:${p.id}`); view = 'timer'; render(); } })),
+    { group: 'Âm thanh', label: Ambient.playing ? 'Tạm dừng âm thanh nền' : 'Phát âm thanh nền', kbd: 'Space', run: () => Ambient.togglePlay() },
+    { group: 'Âm thanh', label: 'Trộn ngẫu nhiên 3 âm thanh', meta: 'Âm thanh', run: () => { Ambient.shuffle(); view = 'sounds'; render(); } },
+    { group: 'Âm thanh', label: 'Tắt hết âm thanh nền', meta: 'Âm thanh', run: () => Ambient.clearAll() },
   ];
+  const groupOrder = ['Điều hướng', 'Hẹn giờ', 'Preset', 'Âm thanh'];
   const ov = document.createElement('div');
   ov.className = 'pal-bg';
-  ov.innerHTML = `<div class="pal" role="dialog" aria-label="Bảng lệnh nhanh">
-    <input class="pal-in" placeholder="Tìm màn hình, preset, lệnh nhanh…" autocomplete="off">
-    <div class="pal-list"></div>
+  ov.innerHTML = `<div class="pal" role="dialog" aria-modal="true" aria-label="Bảng lệnh nhanh">
+    <div class="pal-search"><span class="pal-search-ico" aria-hidden="true">${Icons.search}</span><input class="pal-in" placeholder="Tìm lệnh…" autocomplete="off" aria-label="Tìm lệnh"></div>
+    <div class="pal-list-wrap"><div class="pal-list" role="listbox"></div></div>
+    <div class="pal-more" hidden></div>
   </div>`;
   document.body.appendChild(ov);
   paletteEl = ov;
   const input = ov.querySelector('.pal-in');
+  const wrapEl = ov.querySelector('.pal-list-wrap');
   const listEl = ov.querySelector('.pal-list');
-  let active = 0, filtered = items;
+  const moreEl = ov.querySelector('.pal-more');
+  let active = 0, filtered = [];
+  const updateMore = () => {
+    const btns = [...listEl.querySelectorAll('.pal-item')];
+    const bottom = listEl.scrollTop + listEl.clientHeight;
+    let below = 0;
+    for (const b of btns) { if (b.offsetTop + b.offsetHeight > bottom + 6) below++; }
+    wrapEl.classList.toggle('has-more', below > 0);
+    moreEl.hidden = below === 0;
+    if (below > 0) moreEl.textContent = `Còn ${below} lệnh bên dưới`;
+  };
   const paint = () => {
-    const q = input.value.trim().toLowerCase();
-    filtered = q ? items.filter((it) => `${it.label} ${it.hint}`.toLowerCase().includes(q)) : items;
-    active = Math.max(0, Math.min(active, Math.max(0, filtered.length - 1)));
-    listEl.innerHTML = filtered.length
-      ? filtered.map((it, i) => `<button class="pal-item ${i === active ? 'on' : ''}" data-pi="${i}"><span>${esc(it.label)}</span><kbd>${esc(it.hint)}</kbd></button>`).join('')
-      : '<div class="pal-empty">Không tìm thấy lệnh phù hợp</div>';
+    const rawQ = input.value.trim();
+    const q = rawQ.toLowerCase();
+    const matched = q ? items.filter((it) => `${it.group} ${it.label} ${it.meta || ''} ${it.kbd || ''}`.toLowerCase().includes(q)) : items;
+    filtered = [];
+    let html = '';
+    for (const g of groupOrder) {
+      const grp = matched.filter((it) => it.group === g);
+      if (!grp.length) continue;
+      html += `<div class="pal-group">${esc(g)}</div>`;
+      for (const it of grp) {
+        const idx = filtered.length;
+        filtered.push(it);
+        const right = it.kbd ? `<kbd>${esc(it.kbd)}</kbd>` : (it.meta ? `<span class="pal-meta">${esc(it.meta)}</span>` : '');
+        html += `<button class="pal-item ${idx === active ? 'on' : ''}" role="option" aria-selected="${idx === active}" data-pi="${idx}"><span class="pal-label">${esc(it.label)}</span>${right}</button>`;
+      }
+    }
+    if (!filtered.length) {
+      active = 0;
+      listEl.innerHTML = `<div class="pal-empty">Không có lệnh khớp "${esc(rawQ)}"</div>`;
+      updateMore();
+      return;
+    }
+    active = Math.max(0, Math.min(active, filtered.length - 1));
+    listEl.innerHTML = html;
+    const onBtn = listEl.querySelector(`[data-pi="${active}"]`);
+    if (onBtn) {
+      listEl.querySelectorAll('.pal-item.on').forEach((b) => { b.classList.remove('on'); b.setAttribute('aria-selected', 'false'); });
+      onBtn.classList.add('on');
+      onBtn.setAttribute('aria-selected', 'true');
+      onBtn.scrollIntoView({ block: 'nearest' });
+    }
+    updateMore();
   };
   paint();
   input.focus({ preventScroll: true });
   input.addEventListener('input', () => { active = 0; paint(); });
+  listEl.addEventListener('scroll', updateMore);
   listEl.addEventListener('click', (e) => {
     const b = e.target.closest('[data-pi]');
     if (!b) return;
     const it = filtered[+b.dataset.pi];
-    closePalette();
+    closePalette(false);
     if (it) it.run();
   });
-  ov.addEventListener('click', (e) => { if (e.target === ov) closePalette(); });
+  ov.addEventListener('click', (e) => { if (e.target === ov) closePalette(true); });
   ov.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { e.preventDefault(); closePalette(); }
-    else if (e.key === 'ArrowDown') { e.preventDefault(); active = (active + 1) % Math.max(1, filtered.length); paint(); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); active = (active - 1 + Math.max(1, filtered.length)) % Math.max(1, filtered.length); paint(); }
-    else if (e.key === 'Enter' && filtered[active]) { e.preventDefault(); const it = filtered[active]; closePalette(); it.run(); }
+    if (e.key === 'Escape') { e.preventDefault(); closePalette(true); }
+    else if (e.key === 'Tab') { e.preventDefault(); input.focus(); }
+    else if (e.key === 'ArrowDown' && filtered.length) { e.preventDefault(); active = (active + 1) % filtered.length; paint(); }
+    else if (e.key === 'ArrowUp' && filtered.length) { e.preventDefault(); active = (active - 1 + filtered.length) % filtered.length; paint(); }
+    else if (e.key === 'Enter' && filtered[active]) { e.preventDefault(); const it = filtered[active]; closePalette(false); it.run(); }
   });
 }
 
@@ -1570,13 +1913,19 @@ document.addEventListener('keydown', (e) => {
   const t = e.target;
   const inInput = ['INPUT', 'TEXTAREA'].includes(t.tagName);
   if (e.ctrlKey && e.key.toLowerCase() === 'k') { e.preventDefault(); openCommandPalette(); return; }
-  if (paletteEl) { if (e.key === 'Escape') { e.preventDefault(); closePalette(); } return; }
+  if (paletteEl) { if (e.key === 'Escape') { e.preventDefault(); closePalette(true); } return; }
   if (t.dataset?.dial && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); stepDial(t, e.key === 'ArrowUp' ? 1 : -1); return; }
   if (t.dataset?.renameInput) { if (e.key === 'Enter') t.blur(); if (e.key === 'Escape') { renaming = null; render(); } return; }
+  if (t.dataset?.se) {
+    const box = t.closest('[data-stime-edit]');
+    if (e.key === 'Enter') { e.preventDefault(); commitSchedTime(box); return; }
+    if (e.key === 'Escape') { e.preventDefault(); editingSched = null; render(); return; }
+    return;
+  }
   if (t.id === 'preset-name') { if (e.key === 'Enter') savePreset(); if (e.key === 'Escape') { savingPreset = false; render(); } return; }
   if (t.id === 'mix-name') { if (e.key === 'Enter') $('[data-do="mix-save"]')?.click(); if (e.key === 'Escape') { savingMix = false; render(); } return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'z' && !inInput) {
-    if (runUndo()) { e.preventDefault(); return; }
+    if (undoStack.length) { e.preventDefault(); runUndo(); return; }
   }
   if (!inInput && !e.ctrlKey && !e.metaKey && !e.altKey) {
     if (e.key === '?') { e.preventDefault(); openShortcutsHelp(); return; }
@@ -1589,8 +1938,16 @@ document.addEventListener('keydown', (e) => {
       const row = t.closest?.('[data-key^="p-"]');
       if (row) { e.preventDefault(); renaming = row.dataset.key.slice(2); render(); return; }
     }
+    if (e.key === 'Delete' && view === 'presets') {
+      const row = t.closest?.('[data-key^="p-"]');
+      if (row) { e.preventDefault(); deletePreset(row.dataset.key.slice(2)); return; }
+    }
+    if (e.key === 'Delete' && view === 'schedules') {
+      const row = t.closest?.('[data-key^="s-"]');
+      if (row) { e.preventDefault(); deleteSchedule(row.dataset.key.slice(2)); return; }
+    }
   }
-  if (e.key === 'Escape' && view === 'timer' && snap?.job && !confirmPop && !Dropdown.isOpen()) {
+  if (e.ctrlKey && e.key === '.' && view === 'timer' && snap?.job && !confirmPop && !Dropdown.isOpen()) {
     e.preventDefault();
     const prevJob = { action: snap.job.action, trigger: snap.job.trigger, source: snap.job.source };
     sleepy.cancel().then(() => toast('Đã huỷ hẹn giờ.', {

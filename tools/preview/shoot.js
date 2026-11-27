@@ -1,6 +1,7 @@
 // Chụp giao diện bằng Playwright với IPC giả lập.
 // node tools/preview/shoot.js <out.png> [--theme dark|light] [--size 1060x760] [--page warning] [--job] [--history 40] [--extra 8] [--steps "click:[data-view=presets];wait:400"]
 // Bước: click:<sel> · wait:<ms> · key:<phím> · eval:<js> · hover:<sel> · shot:<file.png> (chụp giữa chừng) · log:<js> (ghi kết quả vào "logs")
+//       down:x,y · move:x,y[,bước] · up (chuột: nhấn / rê / thả, toạ độ px trong cửa sổ) · wheel:dx,dy · keydown:<phím> · keyup:<phím>
 const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
@@ -31,6 +32,12 @@ const flag = (k) => args.includes(k);
     else if (k === 'hover') await p.hover(v);
     else if (k === 'shot') await p.screenshot({ path: v });
     else if (k === 'log') logs.push(await p.evaluate(v));
+    else if (k === 'down') { const [x, y] = v.split(',').map(Number); await p.mouse.move(x, y); await p.mouse.down(); }
+    else if (k === 'move') { const [x, y, n] = v.split(',').map(Number); await p.mouse.move(x, y, { steps: n || 1 }); }
+    else if (k === 'up') await p.mouse.up();
+    else if (k === 'wheel') { const [dx, dy] = v.split(',').map(Number); await p.mouse.wheel(dx, dy); }
+    else if (k === 'keydown') await p.keyboard.down(v);
+    else if (k === 'keyup') await p.keyboard.up(v);
   }
   await p.waitForTimeout(300);
   const scroll = await p.evaluate(() => {

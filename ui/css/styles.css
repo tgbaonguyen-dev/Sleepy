@@ -78,9 +78,9 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
 /* ---------- Khung ---------- */
 .app { position: relative; display: grid; grid-template-columns: 92px 1fr; grid-template-rows: 46px 1fr; height: 100vh; }
 .titlebar { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; padding-left: 22px; }
-.brand { display: flex; align-items: center; gap: 10px; font-weight: 650; letter-spacing: -.01em; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; letter-spacing: -.01em; }
 .brand svg { width: 22px; height: 22px; color: var(--moon); filter: drop-shadow(0 0 8px var(--halo)); }
-.brand small { font-weight: 450; color: var(--ink-3); font-size: 12.5px; }
+.brand small { font-weight: 400; color: var(--ink-3); font-size: 12.5px; }
 .winctl { display: flex; gap: 2px; height: 100%; align-items: center; padding-right: 8px; }
 .winctl button { width: 34px; height: 30px; border-radius: 8px; display: grid; place-items: center; color: var(--ink-3); }
 .winctl button:hover { background: var(--surface-2); color: var(--ink); }
@@ -92,7 +92,7 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
 .rail button:hover { color: var(--ink); background: var(--surface); }
 .rail button.on { color: var(--ink); background: var(--surface-2); }
 .rail button.on svg { color: var(--moon); filter: drop-shadow(0 0 6px var(--halo)); }
-.rail .badge { min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--moon); color: var(--moon-ink); font-size: 10.5px; font-weight: 650; line-height: 18px; margin-top: -2px; }
+.rail .badge { min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--moon); color: var(--moon-ink); font-size: 10.5px; font-weight: 600; line-height: 18px; margin-top: -2px; }
 .mini { margin-top: auto; width: 72px; border-radius: 16px; padding: 10px 6px; text-align: center; background: var(--surface); border: 1px solid var(--line); cursor: pointer; }
 .mini svg { width: 46px; height: 46px; display: block; margin: 0 auto 4px; }
 .mini .v { font-size: 13px; font-weight: 600; }
@@ -104,11 +104,11 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
 @keyframes in { from { opacity: 0; transform: translateY(6px); } }
 .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
 .eyebrow { font-size: 12.5px; color: var(--ink-3); }
-h1 { font-size: 28px; font-weight: 600; letter-spacing: -.025em; line-height: 1.15; margin-top: 4px; }
+h1 { font-size: 27px; font-weight: 600; letter-spacing: -.02em; line-height: 1.15; margin-top: 4px; }
 .label { font-size: 12px; color: var(--ink-3); margin-bottom: 10px; font-weight: 500; }
 
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 22px; }
-.btn { border-radius: 999px; padding: 10px 18px; font-weight: 550; display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; background: var(--surface-2); border: 1px solid var(--line); transition: background .2s, transform .1s, box-shadow .2s; }
+.btn { border-radius: 999px; padding: 10px 18px; font-weight: 500; display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; background: var(--surface-2); border: 1px solid var(--line); transition: background .2s, transform .1s, box-shadow .2s; }
 .btn:hover { background: var(--surface-3); }
 .btn:active { transform: scale(.97); }
 .btn svg { width: 16px; height: 16px; }
@@ -153,7 +153,7 @@ h1 { font-size: 28px; font-weight: 600; letter-spacing: -.025em; line-height: 1.
 .th { stroke: var(--lamp); stroke-width: 3; stroke-linecap: round; }
 
 .time-in { display: flex; align-items: baseline; gap: 2px; }
-.time-in input { width: 1.25em; font-size: 64px; font-weight: 300; letter-spacing: -.04em; line-height: 1; background: transparent; border: 0; text-align: center; border-radius: 12px; font-variant-numeric: tabular-nums; caret-color: var(--moon); }
+.time-in input { width: 1.3em; font-size: 60px; font-weight: 300; letter-spacing: -.03em; line-height: 1; background: transparent; border: 0; text-align: center; border-radius: 12px; font-variant-numeric: tabular-nums; caret-color: var(--moon); }
 .time-in input:hover { background: var(--surface); }
 .time-in input:focus { outline: none; background: var(--surface-2); }
 .time-in .sep { font-size: 54px; font-weight: 200; color: var(--ink-3); }
@@ -171,7 +171,7 @@ h1 { font-size: 28px; font-weight: 600; letter-spacing: -.025em; line-height: 1.
 
 .cond { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
 .sentence { font-size: 17px; line-height: 2; color: var(--ink-2); }
-.sentence input { width: 3.2ch; font-size: 17px; font-weight: 650; color: var(--ink); background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 10px; text-align: center; padding: 2px 4px; font-variant-numeric: tabular-nums; }
+.sentence input { width: 3.2ch; font-size: 17px; font-weight: 600; color: var(--ink); background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 10px; text-align: center; padding: 2px 4px; font-variant-numeric: tabular-nums; }
 .sentence input.wide { width: 11ch; text-align: left; padding: 2px 10px; }
 .sentence input:focus { outline: none; border-color: var(--moon); box-shadow: 0 0 0 3px var(--halo); }
 .note { color: var(--ink-3); font-size: 12.5px; line-height: 1.5; }
@@ -191,7 +191,7 @@ h1 { font-size: 28px; font-weight: 600; letter-spacing: -.025em; line-height: 1.
 .orb > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .orb .center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .orb .icon { width: 26px; height: 26px; color: var(--moon); margin-bottom: 10px; }
-.orb .big { font-size: 84px; font-weight: 250; letter-spacing: -.045em; line-height: 1; transition: color .6s; }
+.orb .big { font-size: 80px; font-weight: 200; letter-spacing: -.035em; line-height: 1; transition: color .6s; }
 .orb .big small { font-size: 26px; color: var(--ink-3); font-weight: 400; letter-spacing: -.01em; margin-left: 4px; }
 .orb .what { font-size: 15px; color: var(--ink-2); margin-top: 12px; }
 .orb .what b { color: var(--ink); font-weight: 600; }
@@ -258,7 +258,7 @@ h1 { font-size: 28px; font-weight: 600; letter-spacing: -.025em; line-height: 1.
 .group h2 { font-size: 13px; color: var(--ink-3); font-weight: 600; padding: 12px 0 4px; }
 .set { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: center; padding: 14px 0; border-top: 1px solid var(--line); }
 .group h2 + .set { border-top: 0; }
-.set b { font-weight: 550; font-size: 14.5px; display: block; }
+.set b { font-weight: 500; font-size: 14.5px; display: block; }
 .set p { color: var(--ink-3); font-size: 12.5px; margin-top: 2px; max-width: 52ch; }
 .mono { font-family: var(--mono); font-size: 13px; border: 1px solid var(--line-2); background: var(--surface); padding: 9px 12px; width: 300px; border-radius: 12px; }
 .mono:focus { outline: none; border-color: var(--moon); }

@@ -1,11 +1,13 @@
 //! Thực hiện hành động thật trên hệ điều hành.
 
+mod awake;
 mod linux;
 
 use std::collections::BTreeMap;
 
 use crate::domain::Action;
 
+pub use awake::KeepAwake;
 pub use linux::Systemd;
 
 /// Điều khiển nguồn — tách thành trait để engine và test không phụ thuộc hệ thống thật.

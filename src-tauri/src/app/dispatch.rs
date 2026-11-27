@@ -18,9 +18,9 @@ pub fn handle(app: &AppHandle, events: Vec<Event>) {
                 windows::open_warning(app);
                 let left = job.remaining(now_ms()).unwrap_or(0);
                 let when = if job.from_condition {
-                    "Việc bạn chờ đã xong".to_string()
+                    "Điều kiện đã được đáp ứng".to_string()
                 } else {
-                    format!("Bạn hẹn lúc {}", job.deadline.map(hhmm).unwrap_or_default())
+                    format!("Đã lên lịch lúc {}", job.deadline.map(hhmm).unwrap_or_default())
                 };
                 notify(
                     app,
@@ -37,7 +37,10 @@ pub fn handle(app: &AppHandle, events: Vec<Event>) {
                     notify(
                         app,
                         "Chế độ thử",
-                        &format!("Đến giờ {} — máy không bị tắt thật.", job.action.verb()),
+                        &format!(
+                            "Đã đến thời điểm {}. Hành động không được thực hiện do chế độ thử đang bật.",
+                            job.action.verb()
+                        ),
                     );
                 }
                 let app = app.clone();

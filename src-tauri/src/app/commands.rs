@@ -5,7 +5,7 @@ use serde_json::Value;
 use tauri::{AppHandle, State, WebviewWindow};
 
 use super::state::FullState;
-use super::{autostart, dispatch, AppState};
+use super::{autostart, dispatch, sync_keep_awake, AppState};
 use crate::domain::time::now_ms;
 use crate::domain::{Action, Trigger};
 use crate::sensors::SensorSource;
@@ -52,9 +52,10 @@ pub fn job_start(
     match result {
         Ok(events) => {
             dispatch::handle(&app, events);
+            let warning = sync_keep_awake(&app).err();
             StartResult {
                 ok: true,
-                error: None,
+                error: warning,
             }
         }
         Err(e) => StartResult {
@@ -72,6 +73,9 @@ pub fn job_cancel(app: AppHandle, state: State<'_, AppState>) {
         core.engine.cancel(&mut core.store, "Đã huỷ")
     };
     dispatch::handle(&app, events);
+    if let Err(error) = sync_keep_awake(&app) {
+        eprintln!("Không đồng bộ được chế độ giữ màn hình sáng sau khi huỷ hẹn: {error}");
+    }
 }
 
 #[tauri::command]
@@ -82,6 +86,9 @@ pub fn job_postpone(app: AppHandle, state: State<'_, AppState>, minutes: i64) {
         core.engine.postpone(&mut core.store, minutes, now_ms())
     };
     dispatch::handle(&app, events);
+    if let Err(error) = sync_keep_awake(&app) {
+        eprintln!("Không đồng bộ được chế độ giữ màn hình sáng sau khi chạy ngay: {error}");
+    }
 }
 
 #[tauri::command]
@@ -104,6 +111,8 @@ pub fn draft_set(state: State<'_, AppState>, draft: Value) {
 /// Gộp một phần cài đặt (chỉ các khoá được gửi lên) vào cài đặt hiện tại.
 #[tauri::command]
 pub fn settings_set(app: AppHandle, state: State<'_, AppState>, patch: Value) -> Result<(), String> {
+    let sync_awake = patch.get("keepAwake").is_some();
+    let previous = state.lock().store.data.settings.clone();
     {
         let mut core = state.lock();
         let mut merged = serde_json::to_value(&core.store.data.settings).map_err(|e| e.to_string())?;
@@ -118,6 +127,16 @@ pub fn settings_set(app: AppHandle, state: State<'_, AppState>, patch: Value) ->
         }
         core.store.data.settings = settings;
         core.store.save().map_err(|e| e.to_string())?;
+    }
+    if sync_awake {
+        if let Err(error) = sync_keep_awake(&app) {
+            let mut core = state.lock();
+            core.store.data.settings = previous;
+            core.store.save().map_err(|save_error| {
+                format!("{error}. Đồng thời không thể khôi phục cài đặt: {save_error}")
+            })?;
+            return Err(error);
+        }
     }
     dispatch::broadcast(&app);
     Ok(())

@@ -30,13 +30,35 @@ const theme = args.includes('--theme') ? args[args.indexOf('--theme') + 1] : 'da
     return p;
   }
   const allAlive = (o) => Object.values(o).every(Boolean);
+  const sideBounds = (page) => page.evaluate(() => Object.fromEntries(['side-actions', 'side-mode', 'side-detail'].map((id) => {
+    const rect = document.getElementById(id).getBoundingClientRect();
+    return [id, [rect.x, rect.y, rect.width, rect.height].map(Math.round)];
+  })));
   const SETUP = ['#main > section.view', '.act[data-action=shutdown]', '.act[data-action=reboot]', '.seg.wide', '#dial', '#dial-svg', '[data-do=start]', '#rail button[data-view=timer]'];
 
   // ----- Màn thiết lập -----
   const p = await open(false);
+  const sky0 = await p.evaluate(() => document.querySelector('#sky').toDataURL());
+  await p.waitForTimeout(240);
+  const sky1 = await p.evaluate(() => document.querySelector('#sky').toDataURL());
+  check('sky respects theme and animates in dark mode', theme === 'light'
+    ? await p.evaluate(() => getComputedStyle(document.querySelector('#sky')).display === 'none')
+    : sky0 !== sky1);
+  await p.evaluate((s) => window.__probe(s), SETUP);
+  await p.click('[data-action=shutdown]'); await p.waitForTimeout(50);
+  let alive = await p.evaluate(() => window.__alive());
+  check('reselect active action keeps nodes', allAlive(alive), alive);
+  check('reselect active action starts no animation', await p.evaluate(() => !document.querySelector('[data-action=shutdown]').getAnimations({ subtree: true }).length));
+  check('reselect active action removes no #main elements', (await p.evaluate(() => window.__removed)) === 0, await p.evaluate(() => window.__removed));
+  const setupSideBounds = await sideBounds(p);
+  await p.click('[data-mode=countdown]');
+  await p.click('[data-chip="60"]');
+  await p.waitForTimeout(50);
+  check('reselect active mode and chip remove no #main elements', (await p.evaluate(() => window.__removed)) === 0, await p.evaluate(() => window.__removed));
+
   await p.evaluate((s) => window.__probe(s), SETUP);
   await p.click('[data-action=reboot]'); await p.waitForTimeout(250);
-  let alive = await p.evaluate(() => window.__alive());
+  alive = await p.evaluate(() => window.__alive());
   check('select action keeps nodes', allAlive(alive), alive);
   check('select action toggles .on in place', await p.evaluate(() => window.__nodes['.act[data-action=reboot]'].classList.contains('on') && !window.__nodes['.act[data-action=shutdown]'].classList.contains('on')));
   check('select action removed no #main elements', (await p.evaluate(() => window.__removed)) === 0, await p.evaluate(() => window.__removed));
@@ -46,12 +68,14 @@ const theme = args.includes('--theme') ? args[args.indexOf('--theme') + 1] : 'da
   alive = await p.evaluate(() => window.__alive());
   check('switch trigger mode keeps nodes', allAlive(alive), alive);
   check('switch trigger mode updates seg in place', await p.evaluate(() => window.__nodes['.seg.wide'].querySelector('.on').dataset.mode === 'at'));
+  check('setup column stays fixed in at mode', JSON.stringify(await sideBounds(p)) === JSON.stringify(setupSideBounds), await sideBounds(p));
 
   await p.evaluate((s) => window.__probe(s), SETUP);
   await p.click('[data-mode=cond]'); await p.waitForTimeout(150);
   await p.click('[data-type=cpu]'); await p.waitForTimeout(250);
   alive = await p.evaluate(() => window.__alive());
   check('switch condition tab keeps nodes', allAlive(alive), alive);
+  check('setup column stays fixed across conditions', JSON.stringify(await sideBounds(p)) === JSON.stringify(setupSideBounds), await sideBounds(p));
 
   // Sự kiện state từ backend (settings_set phát lại state) trong lúc đang gõ ở ô số
   await p.click('[data-mode=countdown]'); await p.waitForTimeout(200);
@@ -93,12 +117,18 @@ const theme = args.includes('--theme') ? args[args.indexOf('--theme') + 1] : 'da
   const q = await open(true);
   const RUN = ['#main > section.view', '#orb', '#orb-svg', '#big', '.cel-run', '#controls', '[data-do=cancel]', '[data-post="5"]', '#mini svg'];
   await q.evaluate((s) => window.__probe(s), RUN);
+  const arc0 = await q.getAttribute('#run-arc', 'd');
+  await q.waitForTimeout(120);
+  const arc1 = await q.getAttribute('#run-arc', 'd');
+  check('countdown arc moves smoothly between backend ticks', arc0 !== arc1, { arc0, arc1 });
   const t0 = await q.evaluate(() => document.querySelector('#big').textContent);
   await q.waitForTimeout(2200);
   alive = await q.evaluate(() => window.__alive());
   const t1 = await q.evaluate(() => document.querySelector('#big').textContent);
   check('ticks keep running nodes', allAlive(alive), alive);
   check('ticks still update the clock', t0 !== t1, { t0, t1 });
+  await q.click('.awake-pill'); await q.waitForTimeout(250);
+  check('keep-awake control updates in place', await q.evaluate(() => !document.querySelector('.awake-pill').classList.contains('on')));
   await q.evaluate((s) => window.__probe(s), RUN);
   await q.click('[data-post="5"]'); await q.waitForTimeout(300);
   alive = await q.evaluate(() => window.__alive());

@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use tauri::{AppHandle, Emitter, Manager};
 
-use super::{dispatch, tray, AppState};
+use super::{dispatch, sync_keep_awake, tray, AppState};
 use crate::domain::time::now_ms;
 
 pub fn spawn(app: AppHandle) {
@@ -22,6 +22,9 @@ pub fn spawn(app: AppHandle) {
             };
             app.emit("tick", snapshot).ok();
             dispatch::handle(&app, events);
+            if let Err(error) = sync_keep_awake(&app) {
+                eprintln!("Không đồng bộ được chế độ giữ màn hình sáng: {error}");
+            }
             tray::refresh(&app, false);
         })
         .expect("không tạo được luồng nền");

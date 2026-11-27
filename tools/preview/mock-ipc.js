@@ -9,12 +9,12 @@
   const actions = ['shutdown', 'reboot', 'suspend', 'hibernate', 'lock', 'logout'];
   const st = {
     settings: { warnMinutes: 2, graceSeconds: 60, sound: true, dryRun: !!cfg.dryRun, closeToTray: true, autostart: false,
-      startMinimized: false, theme: cfg.theme, preCommand: '' },
+      startMinimized: false, keepAwake: true, theme: cfg.theme, preCommand: '' },
     presets: [
-      { id: 'p1', name: 'Ngủ trưa', action: 'suspend', trigger: { type: 'countdown', seconds: 1800 } },
-      { id: 'p2', name: 'Xem phim rồi ngủ', action: 'shutdown', trigger: { type: 'countdown', seconds: 7200 } },
-      { id: 'p3', name: 'Tải xong thì tắt', action: 'shutdown', trigger: { type: 'net', kbps: 50, minutes: 3 } },
-      { id: 'p4', name: 'Rời máy thì khoá', action: 'lock', trigger: { type: 'idle', minutes: 10 } },
+      { id: 'p1', name: 'Tạm ngưng sau 30 phút', action: 'suspend', trigger: { type: 'countdown', seconds: 1800 } },
+      { id: 'p2', name: 'Tắt máy sau 2 giờ', action: 'shutdown', trigger: { type: 'countdown', seconds: 7200 } },
+      { id: 'p3', name: 'Tắt máy khi tải hoàn tất', action: 'shutdown', trigger: { type: 'net', kbps: 50, minutes: 3 } },
+      { id: 'p4', name: 'Khoá sau 10 phút không hoạt động', action: 'lock', trigger: { type: 'idle', minutes: 10 } },
     ],
     schedules: [{ id: 's1', time: '23:30', days: [0, 1, 2, 3, 4, 5, 6], action: 'shutdown', enabled: true, lastArmed: 0 },
       { id: 's2', time: '07:00', days: [1, 2, 3, 4, 5], action: 'lock', enabled: false, lastArmed: 0 }],

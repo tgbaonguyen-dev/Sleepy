@@ -17,6 +17,8 @@ pub struct Settings {
     pub close_to_tray: bool,
     pub autostart: bool,
     pub start_minimized: bool,
+    /// Keep the display and session awake while a job is active.
+    pub keep_awake: bool,
     /// `dark` | `light` | `system`.
     pub theme: String,
     /// Lệnh shell chạy ngay trước khi thực hiện.
@@ -33,6 +35,7 @@ impl Default for Settings {
             close_to_tray: true,
             autostart: false,
             start_minimized: false,
+            keep_awake: true,
             theme: "dark".into(),
             pre_command: String::new(),
         }
@@ -103,21 +106,29 @@ impl Default for Data {
             version: 2,
             settings: Settings::default(),
             presets: vec![
-                preset("Ngủ trưa", Action::Suspend, Trigger::Countdown { seconds: 1800 }),
                 preset(
-                    "Xem phim rồi ngủ",
+                    "Tạm ngưng sau 30 phút",
+                    Action::Suspend,
+                    Trigger::Countdown { seconds: 1800 },
+                ),
+                preset(
+                    "Tắt máy sau 2 giờ",
                     Action::Shutdown,
                     Trigger::Countdown { seconds: 7200 },
                 ),
                 preset(
-                    "Tải xong thì tắt",
+                    "Tắt máy khi tải hoàn tất",
                     Action::Shutdown,
                     Trigger::Net {
                         kbps: 50.0,
                         minutes: 3,
                     },
                 ),
-                preset("Rời máy thì khoá", Action::Lock, Trigger::Idle { minutes: 10 }),
+                preset(
+                    "Khoá sau 10 phút không hoạt động",
+                    Action::Lock,
+                    Trigger::Idle { minutes: 10 },
+                ),
             ],
             schedules: vec![Schedule {
                 id: new_id(),

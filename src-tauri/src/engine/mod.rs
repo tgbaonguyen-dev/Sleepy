@@ -114,7 +114,7 @@ impl Engine {
             }
             Trigger::Process { name } if name.trim().is_empty() => return Err("Nhập tên ứng dụng".into()),
             Trigger::Process { name } if !sensors.is_running(name) => {
-                return Err(format!("“{}” không đang chạy", name.trim()))
+                return Err(format!("Tiến trình \"{}\" không hoạt động", name.trim()))
             }
             _ => (Phase::Watching, None),
         };

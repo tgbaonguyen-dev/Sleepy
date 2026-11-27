@@ -32,15 +32,15 @@ function paint(j) {
   const f = Math.max(0, Math.min(1, j.remaining / firstTotal));
   const hot = j.remaining <= 60000, fin = j.remaining <= 10000;
   card.classList.toggle('hot', hot && !fin); card.classList.toggle('final', fin);
-  document.getElementById('title').textContent = `Sắp ${a.verb.toLowerCase()}`;
+  document.getElementById('title').textContent = `Sắp thực hiện: ${a.verb.toLowerCase()}`;
   document.getElementById('ic').innerHTML = Icons[j.action];
   document.getElementById('ring').innerHTML = `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:${hot ? 'var(--lamp)' : 'var(--moon)'}"/><stop offset="1" style="stop-color:${hot ? 'var(--danger)' : 'var(--moon-2)'}"/></linearGradient></defs>
     <circle cx="66" cy="66" r="58" fill="none" stroke-width="8" class="track"/>
     <path d="${arc(66, 58, f)}" fill="none" stroke="url(#g)" stroke-width="8" stroke-linecap="round" style="filter:drop-shadow(0 0 8px var(--halo))"/>`;
   const el = document.getElementById('clock'), text = S.clock(j.remaining), prev = el.dataset.t || '';
   if (prev !== text) { el.innerHTML = [...text].map((ch, i) => `<span class="ch${prev.length === text.length && prev[i] !== ch ? ' roll' : ''}">${ch}</span>`).join(''); el.dataset.t = text; }
-  const why = j.fromCondition ? `Việc bạn chờ đã xong.` : `Bạn hẹn lúc <b>${S.hhmm(j.deadline)}</b>.`;
-  document.getElementById('msg').innerHTML = `${why} Nhớ lưu lại việc đang làm nhé.${st?.settings.dryRun ? ' <b>(Chế độ thử)</b>' : ''}`;
+  const why = j.fromCondition ? 'Điều kiện đã được đáp ứng.' : `Hành động được lên lịch lúc <b>${S.hhmm(j.deadline)}</b>.`;
+  document.getElementById('msg').innerHTML = `${why} Hãy lưu công việc đang mở.${st?.settings.dryRun ? ' <b>Chế độ thử đang bật.</b>' : ''}`;
   const sec = Math.ceil(j.remaining / 1000);
   if (sec <= 10 && sec > 0 && sec !== last) { last = sec; tone(sec <= 3 ? 880 : 660, 0.18, 0.06); }
 }

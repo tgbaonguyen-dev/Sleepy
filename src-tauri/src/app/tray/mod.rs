@@ -98,7 +98,7 @@ pub fn refresh(app: &AppHandle, force: bool) {
         if let Ok(menu) = build_menu(app, &status, has_job, can_postpone) {
             tray.set_menu(Some(menu)).ok();
         }
-        tray.set_tooltip(Some(format!("Sleepy — {status}"))).ok();
+        tray.set_tooltip(Some(format!("Sleepy | {status}"))).ok();
         last.menu_key = menu_key;
     }
 }

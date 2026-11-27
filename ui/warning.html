@@ -2,7 +2,7 @@
 <html lang="vi" data-theme="dark">
 <head>
   <meta charset="UTF-8">
-  <title>Sleepy — sắp đến giờ</title>
+  <title>Sleepy | Cảnh báo hẹn giờ</title>
   <link rel="stylesheet" href="css/styles.css">
   <style>
     html, body { background: transparent; }
@@ -33,15 +33,15 @@
   <div class="card-w" id="card" data-tauri-drag-region>
     <div class="ring"><svg viewBox="0 0 132 132" id="ring"></svg><div class="ic" id="ic"></div></div>
     <div class="info">
-      <div class="title" id="title">Sắp tắt máy</div>
+      <div class="title" id="title">Sắp thực hiện: tắt máy</div>
       <div class="clock num" id="clock">--:--</div>
       <div class="msg" id="msg"></div>
     </div>
     <div class="row2">
       <div class="bgroup"><span>Hoãn</span><button data-post="5">5 phút</button><button data-post="15">15 phút</button></div>
       <span class="gap"></span>
-      <button class="btn ghost" id="now">Làm ngay</button>
-      <button class="btn primary" id="cancel">Huỷ</button>
+      <button class="btn ghost" id="now">Thực hiện ngay</button>
+      <button class="btn primary" id="cancel">Huỷ hẹn</button>
     </div>
   </div>
   <script src="js/bridge.js"></script>

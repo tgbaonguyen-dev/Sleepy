@@ -8,7 +8,7 @@ use crate::domain::time::now_ms;
 use crate::engine::{Engine, Snapshot};
 use crate::sensors::{LinuxSensors, SensorSource};
 use crate::store::{HistoryEntry, Preset, Schedule, Settings, Store};
-use crate::system::PowerControl;
+use crate::system::{KeepAwake, PowerControl};
 
 /// Toàn bộ trạng thái có thể thay đổi, bảo vệ bởi một mutex.
 pub struct Core {
@@ -21,6 +21,7 @@ pub struct Core {
 pub struct AppState {
     pub core: Mutex<Core>,
     pub power: Arc<dyn PowerControl>,
+    pub awake: Mutex<KeepAwake>,
 }
 
 impl AppState {

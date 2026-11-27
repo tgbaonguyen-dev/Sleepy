@@ -828,21 +828,41 @@ function playlistPaneHtml(A, song) {
 function youtubePaneHtml(A) {
   const yt = A.yt;
   const stYt = yt.status || 'closed';
-  const statusTxt = stYt === 'visible'
-    ? (yt.title ? `Đang mở: ${yt.title}` : 'Cửa sổ YouTube đang mở — bạn có thể đăng nhập và chọn nhạc trực tiếp.')
-    : stYt === 'hidden'
-      ? (yt.title ? `Đang phát nền: ${yt.title}` : 'Đang phát nền (đã ẩn cửa sổ) — trộn cùng tiếng mưa, gió, dế.')
-      : 'Chưa mở — mở YouTube hoặc YouTube Music để tự đăng nhập và đồng bộ đĩa nhạc.';
+  const open = stYt !== 'closed';
+  const isMusic = yt.source === 'YouTube Music';
 
+  if (!open) {
+    return `<div class="yt-pane">
+      <div class="yt-status"><i class="yt-dot closed"></i><span>Mở YouTube để tự đăng nhập, nghe nền hoặc xem khung video gọn.</span></div>
+      <div class="yt-actions">
+        <button class="btn primary" data-yt="youtube">${Icons.play} Mở YouTube</button>
+        <button class="btn" data-yt="music">${Icons.lofi} YouTube Music</button>
+      </div>
+      <p class="note">Bài đang phát sẽ tự đồng bộ ảnh bìa và nút điều khiển lên đĩa than bên phải.</p>
+    </div>`;
+  }
+
+  const titleTxt = yt.title || (stYt === 'hidden' ? 'Đang phát nền (đã ẩn cửa sổ)' : 'Cửa sổ YouTube đang mở');
   return `<div class="yt-pane">
-    <div class="yt-status"><i class="yt-dot ${stYt}"></i><span>${esc(statusTxt)}</span></div>
-    <div class="yt-actions">
-      <button class="btn primary" data-yt="music">${Icons.lofi} Mở YouTube Music</button>
-      <button class="btn" data-yt="youtube">${Icons.play} Mở YouTube</button>
-      <button class="btn ghost" data-yt="hide" ${stYt === 'visible' ? '' : 'disabled'}>Ẩn cửa sổ (chỉ nghe tiếng)</button>
-      <button class="btn ghost" data-yt="close" ${stYt === 'closed' ? 'disabled' : ''}>Dừng &amp; đóng YouTube</button>
+    <div class="yt-head">
+      <div class="yt-status"><i class="yt-dot ${stYt}"></i><b>${esc(titleTxt)}</b></div>
+      <button class="btn ghost small" data-yt="close" title="Dừng và đóng YouTube">Tắt</button>
     </div>
-    <p class="note">Bài đang phát trên YouTube sẽ tự động đồng bộ tên, ảnh bìa và nút điều khiển lên đĩa nhạc bên phải. Đóng cửa sổ (×) để nghe nền.</p>
+    <div class="yt-opts">
+      <div class="yt-opt">
+        <div><b>Khung video gọn</b><small>Chỉ chiếu đúng khung video, ẩn thanh bên và bình luận</small></div>
+        <button class="switch ${yt.videoOnly ? 'on' : ''}" data-yt="video-only" aria-pressed="${!!yt.videoOnly}" title="Bật/tắt khung video gọn"></button>
+      </div>
+      <div class="yt-opt">
+        <div><b>Chỉ nghe tiếng (chạy nền)</b><small>Ẩn cửa sổ YouTube, vẫn phát nhạc và trộn tiếng mưa</small></div>
+        <button class="switch ${stYt === 'hidden' ? 'on' : ''}" data-yt="${stYt === 'visible' ? 'hide' : 'show'}" aria-pressed="${stYt === 'hidden'}" title="Ẩn/hiện cửa sổ YouTube"></button>
+      </div>
+    </div>
+    <div class="yt-switch-bar">
+      <span class="note">Chuyển nguồn:</span>
+      <button class="sub-tab ${!isMusic ? 'on' : ''}" data-yt="youtube">YouTube</button>
+      <button class="sub-tab ${isMusic ? 'on' : ''}" data-yt="music">YouTube Music</button>
+    </div>
   </div>`;
 }
 
@@ -899,7 +919,10 @@ function viewSounds() {
 
   const subCtl = ytSynced
     ? `<div class="stage-subctl yt-sync-bar">
-        <div class="stage-vol-meta"><span>Nguồn: ${esc(yt.source || 'YouTube')}</span><button class="stage-fade-btn" data-yt="${yt.status === 'visible' ? 'hide' : 'music'}">${yt.status === 'visible' ? 'Ẩn cửa sổ' : 'Hiện cửa sổ'}</button></div>
+        <div class="stage-vol-meta">
+          <button class="stage-fade-btn ${yt.videoOnly ? 'on' : ''}" data-yt="video-only" title="Chỉ hiện khung video gọn">${yt.videoOnly ? 'Khung video: Bật' : 'Khung video'}</button>
+          <button class="stage-fade-btn" data-yt="${yt.status === 'visible' ? 'hide' : 'show'}">${yt.status === 'visible' ? 'Ẩn cửa sổ' : 'Hiện cửa sổ'}</button>
+        </div>
       </div>`
     : stageChannel.id === 'lofi'
       ? `<div class="stage-subctl">
@@ -1092,6 +1115,8 @@ document.addEventListener('click', async (e) => {
     try {
       if (ds.yt === 'hide') await Ambient.ytHide();
       else if (ds.yt === 'close') await Ambient.ytClose();
+      else if (ds.yt === 'video-only') { focusedSnd = 'youtube'; await Ambient.ytSetVideoOnly(!Ambient.yt.videoOnly); }
+      else if (ds.yt === 'show') { focusedSnd = 'youtube'; await Ambient.ytOpen(Ambient.yt.source === 'YouTube Music' ? 'music' : 'youtube'); }
       else { focusedSnd = 'youtube'; await Ambient.ytOpen(ds.yt); }
       return render();
     } catch (err) { return toast(String(err), true); }

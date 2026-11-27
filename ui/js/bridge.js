@@ -53,6 +53,7 @@
     ytStatus: () => invoke('yt_status'),
     ytMedia: () => invoke('yt_media'),
     ytControl: (action) => invoke('yt_control', { action }),
+    ytSetVideoOnly: (enabled) => invoke('yt_set_video_only', { enabled }),
     onState: on('state'),
     onTick: on('tick'),
     onAudio: on('audio'),

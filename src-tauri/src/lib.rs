@@ -67,6 +67,7 @@ pub fn run() {
             yt_status,
             yt_media,
             yt_control,
+            yt_set_video_only,
         ])
         .run(tauri::generate_context!())
         .expect("không khởi động được Sleepy");

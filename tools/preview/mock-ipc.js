@@ -131,8 +131,9 @@
     yt_hide: () => 'hidden',
     yt_close: () => 'closed',
     yt_status: () => 'closed',
-    yt_media: () => ({ status: 'closed', title: null, source: null, videoId: null, artwork: null }),
+    yt_media: () => ({ status: 'closed', title: null, source: null, videoId: null, artwork: null, videoOnly: false }),
     yt_control: () => {},
+    yt_set_video_only: ({ enabled }) => !!enabled,
   };
   window.__TAURI__ = {
     core: { invoke: (cmd, args) => Promise.resolve(handlers[cmd] ? handlers[cmd](args || {}) : null) },

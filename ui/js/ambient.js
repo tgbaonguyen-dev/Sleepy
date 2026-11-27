@@ -21,7 +21,7 @@ window.Ambient = (() => {
     presets: [],
   };
 
-  let yt = { status: 'closed', title: null, source: null, videoId: null, artwork: null };
+  let yt = { status: 'closed', title: null, source: null, videoId: null, artwork: null, videoOnly: false };
 
   function applySnapshot(next) {
     if (!next) return;
@@ -135,6 +135,7 @@ window.Ambient = (() => {
     ytClose: () => sleepy.ytClose(),
     ytStatus: () => sleepy.ytStatus(),
     ytControl: (action) => sleepy.ytControl(action),
+    ytSetVideoOnly: (enabled) => sleepy.ytSetVideoOnly(enabled),
     syncJob: () => {},
     onChange: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
   };

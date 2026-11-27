@@ -1,15 +1,22 @@
 //! Cửa sổ chính, cửa sổ cảnh báo và cửa sổ YouTube phát nền.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 use serde::Serialize;
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder, Window, WindowEvent};
+use tauri::{
+    AppHandle, LogicalSize, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window, WindowEvent,
+};
 
 use super::AppState;
 
 const WARN_W: f64 = 460.0;
 const WARN_H: f64 = 250.0;
 const MARGIN: f64 = 14.0;
+const YT_FULL_W: f64 = 980.0;
+const YT_FULL_H: f64 = 680.0;
+const YT_MINI_W: f64 = 480.0;
+const YT_MINI_H: f64 = 270.0;
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -19,6 +26,7 @@ pub struct YtMediaState {
     pub source: Option<String>,
     pub video_id: Option<String>,
     pub artwork: Option<String>,
+    pub video_only: bool,
 }
 
 #[derive(Default)]
@@ -28,6 +36,7 @@ struct YtThumbCache {
 }
 
 static YT_CACHE: Mutex<Option<YtThumbCache>> = Mutex::new(None);
+static YT_VIDEO_ONLY: AtomicBool = AtomicBool::new(false);
 
 pub fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
@@ -120,11 +129,12 @@ pub fn open_youtube(app: &AppHandle, raw_url: &str) -> Result<String, String> {
 
     WebviewWindowBuilder::new(app, "youtube", WebviewUrl::External(parsed))
         .title("Sleepy | YouTube Audio")
-        .inner_size(980.0, 680.0)
+        .inner_size(YT_FULL_W, YT_FULL_H)
         .decorations(true)
         .center()
         .build()
         .map_err(|e| format!("Không mở được cửa sổ YouTube: {e}"))?;
+    YT_VIDEO_ONLY.store(false, Ordering::Relaxed);
     Ok("visible".into())
 }
 
@@ -137,10 +147,86 @@ pub fn hide_youtube(app: &AppHandle) -> String {
 }
 
 pub fn close_youtube(app: &AppHandle) -> String {
+    YT_VIDEO_ONLY.store(false, Ordering::Relaxed);
     if let Some(w) = app.get_webview_window("youtube") {
         w.destroy().ok();
     }
     "closed".into()
+}
+
+fn apply_video_only_script(w: &WebviewWindow, enabled: bool) {
+    let js = if enabled {
+        r#"(() => {
+  const CSS = `
+    html.sleepy-vo, html.sleepy-vo body { overflow: hidden !important; background: #000 !important; margin: 0 !important; padding: 0 !important; }
+    html.sleepy-vo #masthead-container, html.sleepy-vo #secondary, html.sleepy-vo #below,
+    html.sleepy-vo #related, html.sleepy-vo #comments, html.sleepy-vo #guide,
+    html.sleepy-vo tp-yt-app-drawer, html.sleepy-vo ytd-mini-guide-renderer,
+    html.sleepy-vo #chat, html.sleepy-vo #panels, html.sleepy-vo ytd-merch-shelf-renderer,
+    html.sleepy-vo ytmusic-nav-bar, html.sleepy-vo #nav-bar-background,
+    html.sleepy-vo #side-panel, html.sleepy-vo ytmusic-player-bar, html.sleepy-vo #mini-guide { display: none !important; }
+    html.sleepy-vo ytd-watch-flexy, html.sleepy-vo #columns, html.sleepy-vo #primary,
+    html.sleepy-vo #primary-inner, html.sleepy-vo #player, html.sleepy-vo #player-container-outer,
+    html.sleepy-vo #player-container-inner, html.sleepy-vo #player-container,
+    html.sleepy-vo ytd-player, html.sleepy-vo #container.ytd-player { contain: none !important; transform: none !important; overflow: visible !important; }
+    html.sleepy-vo #movie_player, html.sleepy-vo #song-video {
+      position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important;
+      max-width: 100vw !important; max-height: 100vh !important; z-index: 2147483647 !important; background: #000 !important;
+    }
+    html.sleepy-vo #movie_player video, html.sleepy-vo #song-video video {
+      width: 100% !important; height: 100% !important; left: 0 !important; top: 0 !important; object-fit: contain !important;
+    }
+  `;
+  let el = document.getElementById('sleepy-video-only');
+  if (!el) { el = document.createElement('style'); el.id = 'sleepy-video-only'; document.head.appendChild(el); }
+  el.textContent = CSS;
+  const sync = () => {
+    const hasPlayer = !!document.querySelector('#movie_player, #song-video');
+    document.documentElement.classList.toggle('sleepy-vo', hasPlayer);
+    window.dispatchEvent(new Event('resize'));
+  };
+  if (!window.__sleepyVoBound) {
+    window.__sleepyVoBound = true;
+    window.addEventListener('yt-navigate-finish', () => { if (document.getElementById('sleepy-video-only')) setTimeout(sync, 120); });
+  }
+  sync();
+})()"#
+    } else {
+        r#"(() => {
+  const el = document.getElementById('sleepy-video-only');
+  if (el) el.remove();
+  document.documentElement.classList.remove('sleepy-vo');
+  window.dispatchEvent(new Event('resize'));
+})()"#
+    };
+    w.eval(js).ok();
+}
+
+pub fn set_youtube_video_only(app: &AppHandle, enabled: bool) -> Result<bool, String> {
+    if app.get_webview_window("youtube").is_none() {
+        if !enabled {
+            YT_VIDEO_ONLY.store(false, Ordering::Relaxed);
+            return Ok(false);
+        }
+        open_youtube(app, "https://www.youtube.com")?;
+    }
+    YT_VIDEO_ONLY.store(enabled, Ordering::Relaxed);
+    if let Some(w) = app.get_webview_window("youtube") {
+        if enabled {
+            w.unminimize().ok();
+            w.show().ok();
+            w.set_size(LogicalSize::new(YT_MINI_W, YT_MINI_H)).ok();
+            w.set_always_on_top(true).ok();
+            w.set_title("Sleepy | Khung video").ok();
+        } else {
+            w.set_always_on_top(false).ok();
+            w.set_size(LogicalSize::new(YT_FULL_W, YT_FULL_H)).ok();
+            w.set_title("Sleepy | YouTube Audio").ok();
+        }
+        apply_video_only_script(&w, enabled);
+        w.set_focus().ok();
+    }
+    Ok(enabled)
 }
 
 pub fn youtube_status(app: &AppHandle) -> String {
@@ -171,6 +257,7 @@ pub fn youtube_control(app: &AppHandle, action: &str) -> Result<(), String> {
 }
 
 pub fn youtube_media(app: &AppHandle) -> YtMediaState {
+    let video_only = YT_VIDEO_ONLY.load(Ordering::Relaxed);
     let Some(w) = app.get_webview_window("youtube") else {
         return YtMediaState {
             status: "closed".into(),
@@ -178,6 +265,7 @@ pub fn youtube_media(app: &AppHandle) -> YtMediaState {
             source: None,
             video_id: None,
             artwork: None,
+            video_only: false,
         };
     };
 
@@ -210,6 +298,7 @@ pub fn youtube_media(app: &AppHandle) -> YtMediaState {
         || cleaned == "YouTube"
         || cleaned == "YouTube Music"
         || cleaned == "Sleepy | YouTube Audio"
+        || cleaned == "Sleepy | Khung video"
     {
         None
     } else {
@@ -231,6 +320,7 @@ pub fn youtube_media(app: &AppHandle) -> YtMediaState {
         source: Some(source),
         video_id,
         artwork,
+        video_only,
     }
 }
 

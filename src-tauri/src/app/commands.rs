@@ -2,7 +2,7 @@
 
 use serde::Serialize;
 use serde_json::Value;
-use tauri::{AppHandle, State, WebviewWindow};
+use tauri::{AppHandle, Emitter, State, WebviewWindow};
 
 use super::state::FullState;
 use super::{autostart, dispatch, sync_keep_awake, AppState};
@@ -447,17 +447,23 @@ pub fn yt_open(app: AppHandle, mode: String) -> Result<String, String> {
     } else {
         "https://www.youtube.com"
     };
-    super::windows::open_youtube(&app, url)
+    let status = super::windows::open_youtube(&app, url)?;
+    app.emit("yt-media", super::windows::youtube_media(&app)).ok();
+    Ok(status)
 }
 
 #[tauri::command]
 pub fn yt_hide(app: AppHandle) -> String {
-    super::windows::hide_youtube(&app)
+    let status = super::windows::hide_youtube(&app);
+    app.emit("yt-media", super::windows::youtube_media(&app)).ok();
+    status
 }
 
 #[tauri::command]
 pub fn yt_close(app: AppHandle) -> String {
-    super::windows::close_youtube(&app)
+    let status = super::windows::close_youtube(&app);
+    app.emit("yt-media", super::windows::youtube_media(&app)).ok();
+    status
 }
 
 #[tauri::command]
@@ -473,4 +479,11 @@ pub fn yt_media(app: AppHandle) -> super::windows::YtMediaState {
 #[tauri::command]
 pub fn yt_control(app: AppHandle, action: String) -> Result<(), String> {
     super::windows::youtube_control(&app, &action)
+}
+
+#[tauri::command]
+pub fn yt_set_video_only(app: AppHandle, enabled: bool) -> Result<bool, String> {
+    let out = super::windows::set_youtube_video_only(&app, enabled)?;
+    app.emit("yt-media", super::windows::youtube_media(&app)).ok();
+    Ok(out)
 }

@@ -322,9 +322,24 @@ h1 { font-size: clamp(18px, 1.2vw + 1.3vh + 3px, 25px); font-weight: 600; letter
 .caps div { background: none; padding: 6px 0; border-radius: 0; border-bottom: 1px solid var(--line); }
 .caps { gap: 0 24px; }
 
-.hist { border-spacing: 0; }
-.hist td { background: none; border-bottom: 1px solid var(--line); border-radius: 0 !important; }
-.hist th { border-bottom: 1px solid var(--line); padding-bottom: 10px; }
+.hist { border-spacing: 0; table-layout: fixed; }
+.hist td { background: none; border-bottom: 1px solid var(--line); border-radius: 0 !important; padding: 9px 14px; }
+.hist th { border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+.hist td, .hist td > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hist td b { font-weight: 600; }
+.hist col.c-time { width: 132px; } .hist col.c-src { width: 24%; } .hist col.c-res { width: 168px; }
+
+/* ---------- Phân trang: danh sách chiếm phần còn lại, chân trang chứa ghi chú + ‹ 1/3 › ---------- */
+.fit { flex: 1 1 0; min-height: 0; position: relative; overflow: hidden; }
+.list > * { flex: none; }
+.foot { flex: none; display: flex; align-items: center; gap: 16px; min-height: 40px; padding-top: 8px; }
+.foot .note { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pager { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; }
+.pager .icon-btn { width: 30px; height: 30px; border-radius: 9px; color: var(--ink-2); }
+.pager .icon-btn svg { width: 16px; height: 16px; }
+.pager .icon-btn:hover { color: var(--ink); background: var(--surface-2); }
+.pager .icon-btn:disabled { opacity: .3; cursor: default; background: none; }
+.pager .num { min-width: 3.4em; text-align: center; font-size: 12px; color: var(--ink-3); }
 
 .mini { background: none; border: 0; }
 .rail button.on { background: none; }

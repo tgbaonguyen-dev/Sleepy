@@ -8,6 +8,9 @@ const TAU = Math.PI * 2;
 let st = null, snap = null, view = 'timer', draft = null;
 let procList = [], procRunning = null, savingPreset = false, renaming = null;
 const spark = { cpu: [], net: [] };
+// Danh sách dài (preset, lịch lặp, nhật ký) không bao giờ cuộn: mỗi trang chỉ chứa số dòng vừa khung,
+// số đó được đo lại sau mỗi lần vẽ / đổi cỡ cửa sổ (xem fitPages).
+const pages = { presets: { page: 0, per: 8 }, schedules: { page: 0, per: 6 }, history: { page: 0, per: 10 } };
 const sched = { h: 23, m: 30, days: [1, 2, 3, 4, 5], action: 'shutdown' };
 
 const VIEWS = [['timer', 'Hẹn giờ', 'timer'], ['presets', 'Preset', 'bookmark'], ['schedules', 'Lịch lặp', 'repeat'], ['history', 'Nhật ký', 'history'], ['settings', 'Cài đặt', 'gear']];
@@ -163,17 +166,19 @@ function render() {
   const key = viewKey(), first = shownKey === null, swap = !first && key !== shownKey;
   shownKey = key;
   const motion = !reduceMotion.matches;
-  if (swap && motion && document.startViewTransition) { document.startViewTransition(() => draw(true)); return; }
-  draw(swap);
+  if (swap && motion && document.startViewTransition) { document.startViewTransition(() => draw()); return; }
+  draw();
   if ((swap || first) && motion) {
     $('#main').firstElementChild?.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }],
       { duration: 240, easing: 'cubic-bezier(.22, .9, .25, 1)' });
   }
 }
-function draw(swapped) {
+function draw() {
   applyTheme(); renderRail();
   const main = $('#main');
-  morph(main, { timer: () => (snap?.job ? viewRunning() : viewSetup()), presets: viewPresets, schedules: viewSchedules, history: viewHistory, settings: viewSettings }[view]());
+  const html = () => ({ timer: () => (snap?.job ? viewRunning() : viewSetup()), presets: viewPresets, schedules: viewSchedules, history: viewHistory, settings: viewSettings }[view]());
+  morph(main, html());
+  for (let i = 0; i < 3 && fitPages(); i++) morph(main, html());
   if (view === 'timer' && !snap?.job) { renderDial(); bindDial(); }
   if (view === 'timer' && snap?.job) updateRunning();
   const r = $('[data-rename-input]'); if (r && document.activeElement !== r) { r.focus(); r.select(); }
@@ -198,8 +203,36 @@ function syncIndicators() {
     slide(sg, { '--ind-x': `${b ? b.offsetLeft : 0}px`, '--ind-w': `${b ? b.offsetWidth : 0}px` });
   });
 }
-addEventListener('resize', () => st && syncIndicators());
+let resizeRaf = 0;
+addEventListener('resize', () => { if (!st) return; cancelAnimationFrame(resizeRaf); resizeRaf = requestAnimationFrame(() => draw()); });
 document.fonts?.ready.then(() => st && syncIndicators());
+
+// ---------- Phân trang ----------
+function paged(name, items) {
+  const pg = pages[name], count = Math.max(1, Math.ceil(items.length / pg.per));
+  pg.page = Math.max(0, Math.min(pg.page, count - 1));
+  return { rows: items.slice(pg.page * pg.per, (pg.page + 1) * pg.per), first: pg.page * pg.per, page: pg.page, count };
+}
+function pager(name, info) {
+  if (info.count < 2) return '';
+  return `<div class="pager" data-key="pg-${name}"><button class="icon-btn" data-page="${name}:-1" ${info.page ? '' : 'disabled'} title="Trang trước">${Icons.chevL}</button>
+    <span class="num">${info.page + 1}/${info.count}</span><button class="icon-btn" data-page="${name}:1" ${info.page < info.count - 1 ? '' : 'disabled'} title="Trang sau">${Icons.chevR}</button></div>`;
+}
+const offsetIn = (n, root) => { let y = 0; while (n && n !== root) { y += n.offsetTop; n = n.offsetParent; } return y; };
+// Đo khung [data-fit] vừa vẽ: còn dư / thiếu bao nhiêu dòng [data-row]. Trả về true nếu số dòng mỗi trang đổi
+// (khi đó vẽ lại). Giữ dòng đầu trang hiện tại vẫn nằm trong trang mới.
+function fitPages() {
+  let changed = false;
+  document.querySelectorAll('#main [data-fit]').forEach((box) => {
+    const pg = pages[box.dataset.fit], rows = [...box.querySelectorAll('[data-row]')];
+    if (!pg || !rows.length) return;
+    const rowH = Math.max(...rows.map((r) => r.offsetHeight)), last = rows[rows.length - 1];
+    const slack = box.clientHeight - (offsetIn(last, box) + last.offsetHeight);
+    const per = Math.max(1, rows.length + Math.floor(slack / rowH));
+    if (per !== pg.per) { pg.page = Math.floor((pg.page * pg.per) / per); pg.per = per; changed = true; }
+  });
+  return changed;
+}
 
 // ---------- 01 Hẹn giờ: thiết lập ----------
 function viewSetup() {
@@ -436,8 +469,9 @@ function updateRunning() {
 
 // ---------- 02 Preset ----------
 function viewPresets() {
-  const rows = st.presets.map((p, i) => `
-    <div class="item" data-key="p-${p.id}" style="animation-delay:${i * 40}ms">
+  const pg = paged('presets', st.presets);
+  const rows = pg.rows.map((p, i) => `
+    <div class="item" data-row data-key="p-${p.id}" style="animation-delay:${i * 40}ms">
       <div class="ico">${Icons[p.action]}</div>
       <div>${renaming === p.id
         ? `<div class="pname"><input data-rename-input="${p.id}" value="${esc(p.name)}" maxlength="40"></div>`
@@ -449,8 +483,8 @@ function viewPresets() {
     </div>`).join('');
   return `<section class="view presets" data-key="v-presets">
     <div class="head"><div><div class="eyebrow">Preset</div><h1>Những kiểu hẹn bạn hay dùng</h1></div></div>
-    <div class="list">${rows || '<div class="empty">Chưa có preset nào. Hẹn xong ở màn Hẹn giờ thì bấm “Lưu làm preset”.</div>'}</div>
-    <p class="note" style="margin-top:16px">Nhấp đúp vào tên để đổi. Preset cũng nằm sẵn trong menu ở khay hệ thống.</p>
+    <div class="list fit" data-fit="presets">${rows || '<div class="empty">Chưa có preset nào. Hẹn xong ở màn Hẹn giờ thì bấm “Lưu làm preset”.</div>'}</div>
+    <div class="foot"><p class="note">Nhấp đúp vào tên để đổi. Preset cũng nằm sẵn trong menu ở khay hệ thống.</p>${pager('presets', pg)}</div>
   </section>`;
 }
 
@@ -458,9 +492,10 @@ function viewPresets() {
 function viewSchedules() {
   const days = (arr, id) => [1, 2, 3, 4, 5, 6, 0].map((d) =>
     `<button class="day ${arr.includes(d) ? 'on' : ''}" ${id ? `data-sday="${id}:${d}"` : `data-nday="${d}"`}>${S.DAYS[d]}</button>`).join('');
-  const rows = st.schedules.map((sc, i) => {
+  const pg = paged('schedules', st.schedules);
+  const rows = pg.rows.map((sc, i) => {
     const next = snap?.next?.find((n) => n.id === sc.id)?.at;
-    return `<div class="item ${sc.enabled ? '' : 'off'}" data-key="s-${sc.id}" style="animation-delay:${i * 40}ms">
+    return `<div class="item ${sc.enabled ? '' : 'off'}" data-row data-key="s-${sc.id}" style="animation-delay:${i * 40}ms">
       <span class="stime num">${sc.time}</span>
       <div><div class="days" style="margin-bottom:8px">${days(sc.days, sc.id)}</div>
         <div class="pdesc"><b style="color:var(--ink);font-weight:600">${S.ACTIONS[sc.action].label}</b> · ${sc.enabled ? (next ? `lần tới ${S.dayWord(next)} ${S.hhmm(next)}` : 'chưa chọn ngày') : 'đang tắt'}</div></div>
@@ -476,26 +511,29 @@ function viewSchedules() {
       <div><div class="label">Hành động</div><select class="select" data-sact>${ORDER.map((k) => `<option value="${k}" ${sched.action === k ? 'selected' : ''}>${S.ACTIONS[k].label}</option>`).join('')}</select></div>
       <button class="btn primary" data-do="sched-add">${Icons.plus} Thêm lịch</button>
     </div>
-    <div class="list">${rows || '<div class="empty">Chưa có lịch nào. Chọn giờ và ngày ở trên rồi bấm Thêm lịch.</div>'}</div>
-    <p class="note" style="margin-top:16px">Lịch chỉ chạy khi Sleepy đang mở, kể cả lúc ẩn dưới khay. Bật “Mở cùng máy” trong Cài đặt cho chắc.</p>
+    <div class="list fit" data-fit="schedules">${rows || '<div class="empty">Chưa có lịch nào. Chọn giờ và ngày ở trên rồi bấm Thêm lịch.</div>'}</div>
+    <div class="foot"><p class="note">Lịch chỉ chạy khi Sleepy đang mở, kể cả lúc ẩn dưới khay. Bật “Mở cùng máy” trong Cài đặt cho chắc.</p>${pager('schedules', pg)}</div>
   </section>`;
 }
 
 // ---------- 04 Nhật ký ----------
 function viewHistory() {
   const badge = { done: '<span class="tag ok">Đã thực hiện</span>', cancel: '<span class="tag">Đã huỷ</span>', dry: '<span class="tag lamp">Thử</span>', error: '<span class="tag err">Lỗi</span>', pending: '<span class="tag">…</span>' };
-  const rows = st.history.map((h) => {
+  const pg = paged('history', st.history);
+  const rows = pg.rows.map((h) => {
     const d = new Date(h.at);
-    return `<tr data-key="h-${h.id}"><td class="num">${pad(d.getDate())}/${pad(d.getMonth() + 1)} · ${S.hhmm(h.at)}</td>
-      <td><b style="font-weight:600">${S.ACTIONS[h.action]?.label || h.action}</b><div class="sub">${esc(S.triggerText(h.trigger))}</div></td>
-      <td class="dim">${esc(sourceLabel(h.source))}</td>
+    return `<tr data-row data-key="h-${h.id}"><td class="num">${pad(d.getDate())}/${pad(d.getMonth() + 1)} · ${S.hhmm(h.at)}</td>
+      <td><b>${S.ACTIONS[h.action]?.label || h.action}</b><div class="sub">${esc(S.triggerText(h.trigger))}</div></td>
+      <td class="dim c-src">${esc(sourceLabel(h.source))}</td>
       <td>${badge[h.result] || ''}${h.note && h.note !== 'Đã huỷ' ? `<div class="sub">${esc(h.note)}</div>` : ''}</td></tr>`;
   }).join('');
   return `<section class="view" data-key="v-history">
     <div class="head"><div><div class="eyebrow">Nhật ký</div><h1>Đã làm gì, lúc nào</h1></div>
       ${st.history.length ? '<button class="btn ghost small" data-do="hist-clear">Xoá nhật ký</button>' : ''}</div>
-    ${rows ? `<table class="hist"><thead><tr><th>Thời gian</th><th>Hành động</th><th>Nguồn</th><th>Kết quả</th></tr></thead><tbody>${rows}</tbody></table>`
-      : '<div class="empty">Chưa có lần hẹn nào. Hẹn xong sẽ thấy ở đây.</div>'}
+    <div class="fit" data-fit="history">${rows ? `<table class="hist"><colgroup><col class="c-time"><col><col class="c-src"><col class="c-res"></colgroup>
+      <thead><tr><th>Thời gian</th><th>Hành động</th><th class="c-src">Nguồn</th><th>Kết quả</th></tr></thead><tbody>${rows}</tbody></table>`
+      : '<div class="empty">Chưa có lần hẹn nào. Hẹn xong sẽ thấy ở đây.</div>'}</div>
+    ${pg.count > 1 ? `<div class="foot">${pager('history', pg)}</div>` : ''}
   </section>`;
 }
 
@@ -548,6 +586,7 @@ document.addEventListener('click', async (e) => {
   if (ds.chip) { const v = +ds.chip; draft.countdown = { h: Math.floor(v / 60), m: v % 60, s: 0 }; saveDraft(); return render(); }
   if (ds.chipAt) { const [h, m] = ds.chipAt.split(':').map(Number); draft.at = { h, m }; saveDraft(); return render(); }
   if (ds.post) return sleepy.postpone(+ds.post);
+  if (ds.page) { const [k, d] = ds.page.split(':'); pages[k].page += +d; return render(); }
   if (ds.run) { const p = st.presets.find((x) => x.id === ds.run); if (p) { await start(p.action, p.trigger, `preset:${p.id}`); view = 'timer'; render(); } return; }
   if (ds.delPreset) return sleepy.setPresets(st.presets.filter((p) => p.id !== ds.delPreset));
   if (ds.set) return sleepy.setSettings({ [ds.set]: JSON.parse(ds.val) });

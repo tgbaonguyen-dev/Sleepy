@@ -17,6 +17,8 @@ window.Icons = (() => {
     trash: w('<path d="M5 7h14M10 7V5h4v2M7 7l1 12.5h8L17 7"/>'),
     play: w('<path d="M8 5.5v13l10.5-6.5z"/>'),
     plus: w('<path d="M12 5v14M5 12h14"/>'),
+    chevL: w('<path d="m14.5 6-6 6 6 6"/>'),
+    chevR: w('<path d="m9.5 6 6 6-6 6"/>'),
     min: '<svg width="11" height="11" viewBox="0 0 11 11"><path d="M1 5.5h9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
     max: '<svg width="11" height="11" viewBox="0 0 11 11"><rect x="1.5" y="1.5" width="8" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>',
     close: '<svg width="11" height="11" viewBox="0 0 11 11"><path d="M1.5 1.5l8 8M9.5 1.5l-8 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>'

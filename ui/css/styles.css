@@ -1,4 +1,4 @@
-@import url('../fonts/inter/index.css');
+@import url('../fonts/be-vietnam-pro/index.css');
 
 /* Sleepy — "Đêm yên tĩnh": nền trời đêm, ánh trăng làm màu nhấn, ánh đèn cam cho phút cuối. */
 :root {
@@ -23,7 +23,7 @@
   --shadow: 0 24px 60px -24px rgba(0, 0, 0, .7);
   --stars: 1;
   --sky-glow: rgba(110, 128, 230, .16);
-  --font: 'Inter Variable', 'Inter', 'Ubuntu Sans', 'Cantarell', system-ui, sans-serif;
+  --font: 'Be Vietnam Pro', 'Ubuntu Sans', 'Cantarell', system-ui, sans-serif;
   --mono: 'Ubuntu Sans Mono', 'Ubuntu Mono', 'JetBrains Mono', ui-monospace, monospace;
   --ease: cubic-bezier(.22, .9, .25, 1);
   color-scheme: dark;
@@ -56,8 +56,7 @@
 html, body { height: 100%; }
 body {
   font-family: var(--font);
-  font-feature-settings: 'cv11', 'ss03';
-  color: var(--ink);
+    color: var(--ink);
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;

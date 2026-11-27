@@ -6,8 +6,8 @@ use std::sync::Mutex;
 use serde::Serialize;
 use tauri::webview::WebviewBuilder;
 use tauri::{
-    AppHandle, LogicalPosition, LogicalSize, Manager, Rect, Webview, WebviewUrl, WebviewWindowBuilder,
-    Window, WindowEvent,
+    AppHandle, LogicalPosition, LogicalSize, Manager, Webview, WebviewUrl, WebviewWindowBuilder, Window,
+    WindowEvent,
 };
 
 use super::AppState;
@@ -109,6 +109,77 @@ pub fn close_warning(app: &AppHandle) {
     }
 }
 
+#[cfg(target_os = "linux")]
+fn position_youtube_overlay(app: &AppHandle, wv: &Webview, x: f64, y: f64, w: f64, h: f64, visible: bool) {
+    use gtk::prelude::*;
+    let Some(main_win) = app.get_window("main") else {
+        return;
+    };
+    let (mx, my, mw, mh) = (
+        x.max(0.0).round() as i32,
+        y.max(0.0).round() as i32,
+        w.max(60.0).round() as i32,
+        h.max(60.0).round() as i32,
+    );
+    let _ = wv.with_webview(move |pw| {
+        let Ok(gtk_win) = main_win.gtk_window() else {
+            return;
+        };
+        let yt_widget: gtk::Widget = pw.inner().upcast();
+        let already_in_overlay = yt_widget
+            .parent()
+            .is_some_and(|p| p.dynamic_cast::<gtk::Overlay>().is_ok());
+        if !already_in_overlay {
+            if let Some(parent) = yt_widget
+                .parent()
+                .and_then(|p| p.dynamic_cast::<gtk::Container>().ok())
+            {
+                parent.remove(&yt_widget);
+            }
+            let overlay = if let Some(ov) = gtk_win.child().and_then(|c| c.downcast::<gtk::Overlay>().ok()) {
+                ov
+            } else {
+                let ov = gtk::Overlay::new();
+                if let Some(child) = gtk_win.child() {
+                    gtk_win.remove(&child);
+                    ov.add(&child);
+                }
+                gtk_win.add(&ov);
+                ov.show();
+                ov
+            };
+            overlay.add_overlay(&yt_widget);
+        }
+        yt_widget.set_halign(gtk::Align::Start);
+        yt_widget.set_valign(gtk::Align::Start);
+        yt_widget.set_hexpand(false);
+        yt_widget.set_vexpand(false);
+        yt_widget.set_margin_start(mx);
+        yt_widget.set_margin_top(my);
+        if visible {
+            yt_widget.set_size_request(mw, mh);
+            yt_widget.show();
+        } else {
+            yt_widget.hide();
+            yt_widget.set_size_request(0, 0);
+        }
+    });
+}
+
+#[cfg(not(target_os = "linux"))]
+fn position_youtube_overlay(_app: &AppHandle, wv: &Webview, x: f64, y: f64, w: f64, h: f64, visible: bool) {
+    if visible && w >= 60.0 && h >= 60.0 {
+        wv.set_bounds(tauri::Rect {
+            position: LogicalPosition::new(x.max(0.0), y.max(0.0)).into(),
+            size: LogicalSize::new(w, h).into(),
+        })
+        .ok();
+        wv.show().ok();
+    } else {
+        wv.hide().ok();
+    }
+}
+
 pub fn open_youtube(
     app: &AppHandle,
     raw_url: &str,
@@ -123,20 +194,12 @@ pub fn open_youtube(
         return Err("Chỉ hỗ trợ YouTube và YouTube Music".into());
     }
 
-    let pos = LogicalPosition::new(x.max(0.0), y.max(0.0));
-    let size = LogicalSize::new(w.max(200.0), h.max(120.0));
-
     if let Some(wv) = app.get_webview("youtube") {
         let current_host = wv.url().ok().and_then(|u| u.host_str().map(|s| s.to_string()));
         if current_host.as_deref() != Some(host) {
             wv.navigate(parsed).map_err(|e| e.to_string())?;
         }
-        wv.set_bounds(Rect {
-            position: pos.into(),
-            size: size.into(),
-        })
-        .ok();
-        wv.show().ok();
+        position_youtube_overlay(app, &wv, x, y, w, h, true);
         YT_VISIBLE.store(true, Ordering::Relaxed);
         apply_video_only_script(&wv, YT_VIDEO_ONLY.load(Ordering::Relaxed));
         return Ok("visible".into());
@@ -145,13 +208,16 @@ pub fn open_youtube(
     let main_win = app
         .get_window("main")
         .ok_or_else(|| "Không tìm thấy cửa sổ chính".to_string())?;
+    let pos = LogicalPosition::new(x.max(0.0), y.max(0.0));
+    let size = LogicalSize::new(w.max(200.0), h.max(120.0));
     let builder = WebviewBuilder::new("youtube", WebviewUrl::External(parsed));
     let wv = main_win
         .add_child(builder, pos, size)
         .map_err(|e| format!("Không nhúng được khung YouTube: {e}"))?;
     YT_VISIBLE.store(true, Ordering::Relaxed);
-    YT_VIDEO_ONLY.store(false, Ordering::Relaxed);
-    wv.show().ok();
+    YT_VIDEO_ONLY.store(true, Ordering::Relaxed);
+    position_youtube_overlay(app, &wv, x, y, w, h, true);
+    apply_video_only_script(&wv, true);
     Ok("visible".into())
 }
 
@@ -160,25 +226,19 @@ pub fn set_youtube_bounds(app: &AppHandle, x: f64, y: f64, w: f64, h: f64, visib
         YT_VISIBLE.store(false, Ordering::Relaxed);
         return "closed".into();
     };
-    if visible && w >= 60.0 && h >= 60.0 {
-        wv.set_bounds(Rect {
-            position: LogicalPosition::new(x.max(0.0), y.max(0.0)).into(),
-            size: LogicalSize::new(w, h).into(),
-        })
-        .ok();
-        wv.show().ok();
-        YT_VISIBLE.store(true, Ordering::Relaxed);
+    let show = visible && w >= 60.0 && h >= 60.0;
+    position_youtube_overlay(app, &wv, x, y, w, h, show);
+    YT_VISIBLE.store(show, Ordering::Relaxed);
+    if show {
         "visible".into()
     } else {
-        wv.hide().ok();
-        YT_VISIBLE.store(false, Ordering::Relaxed);
         "hidden".into()
     }
 }
 
 pub fn hide_youtube(app: &AppHandle) -> String {
     if let Some(wv) = app.get_webview("youtube") {
-        wv.hide().ok();
+        position_youtube_overlay(app, &wv, 0.0, 0.0, 0.0, 0.0, false);
         YT_VISIBLE.store(false, Ordering::Relaxed);
         return "hidden".into();
     }
@@ -222,13 +282,14 @@ fn apply_video_only_script(wv: &Webview, enabled: bool) {
   if (!el) { el = document.createElement('style'); el.id = 'sleepy-video-only'; document.head.appendChild(el); }
   el.textContent = CSS;
   const sync = () => {
-    const hasPlayer = !!document.querySelector('#movie_player, #song-video');
+    const isWatch = location.pathname.startsWith('/watch') || location.hostname === 'music.youtube.com';
+    const hasPlayer = isWatch && !!document.querySelector('#movie_player video, #song-video video');
     document.documentElement.classList.toggle('sleepy-vo', hasPlayer);
     window.dispatchEvent(new Event('resize'));
   };
   if (!window.__sleepyVoBound) {
     window.__sleepyVoBound = true;
-    window.addEventListener('yt-navigate-finish', () => { if (document.getElementById('sleepy-video-only')) setTimeout(sync, 120); });
+    window.addEventListener('yt-navigate-finish', () => { if (document.getElementById('sleepy-video-only')) setTimeout(sync, 180); });
   }
   sync();
 })()"#
@@ -321,6 +382,10 @@ pub fn youtube_media(app: &AppHandle) -> YtMediaState {
         Some(id) => fetch_yt_meta_cached(id),
         None => (None, None),
     };
+
+    if video_only && video_id.is_some() {
+        apply_video_only_script(&wv, true);
+    }
 
     YtMediaState {
         status,

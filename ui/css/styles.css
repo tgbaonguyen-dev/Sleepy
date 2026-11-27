@@ -455,8 +455,17 @@ html.dragging-dial, html.dragging-dial * { cursor: grabbing !important; -webkit-
 .cel-bg { fill: var(--bg0); }
 .cel-disc { stroke: var(--moon); stroke-width: 2; filter: drop-shadow(0 2px 8px rgba(0,0,0,.25)); }
 [data-theme='light'] .cel-disc { stroke: var(--moon); filter: drop-shadow(0 2px 6px rgba(120,60,20,.25)); }
-.handle-g { transition: transform .18s var(--ease); }
-.dial.drag:hover .handle-g { transform: scale(1.12); }
+.handle-g { transition: transform .18s var(--ease), filter .18s var(--ease); }
+.dial.drag:hover .handle-g, .dial.drag:focus-visible .handle-g { transform: scale(1.12); filter: drop-shadow(0 0 8px var(--halo)); }
+html.dragging-dial .dial .handle-g { transform: scale(1.2); filter: drop-shadow(0 0 14px var(--halo)) drop-shadow(0 0 4px var(--halo)); }
+/* Rãnh sáng nhẹ khi rê chuột và rõ hơn khi đang kéo */
+.dial.drag .track { transition: stroke .2s var(--ease); }
+.dial.drag:hover .track { stroke: color-mix(in srgb, var(--surface-2) 88%, var(--moon)); }
+html.dragging-dial .dial .track { stroke: color-mix(in srgb, var(--surface-2) 74%, var(--moon)); }
+[data-theme='light'] .dial.drag:hover .track { stroke: color-mix(in srgb, var(--surface-2) 94%, var(--moon)); }
+[data-theme='light'].dragging-dial .dial .track { stroke: color-mix(in srgb, var(--surface-2) 86%, var(--moon)); }
+[data-theme='light'].dragging-dial .dial .handle-g { filter: drop-shadow(0 4px 10px rgba(216, 70, 45, .35)); }
+html.dragging-dial .dial:focus-visible { outline-color: transparent; }
 .cel-run .cel-disc { filter: drop-shadow(0 0 10px var(--halo)); }
 
 /* ---------- Hay dùng: danh sách gọn thay cho nhãn bo viền ---------- */

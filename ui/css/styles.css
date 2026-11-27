@@ -542,3 +542,47 @@ h1 { font-size: clamp(18px, 1.2vw + 1.3vh + 3px, 25px); font-weight: 600; letter
   .mini .v { font-size: 10.5px; }
   .mini .d { display: none; }
 }
+
+/* ---------- Thang chữ gọn hơn: Be Vietnam Pro khá rộng, cỡ nhỏ hơn một chút + độ đậm vừa phải trông tinh hơn ---------- */
+body { font-size: 13.5px; }
+.label { font-size: 11px; font-weight: 500; letter-spacing: .03em; margin-bottom: 8px; }
+.eyebrow { font-size: 11.5px; letter-spacing: .01em; }
+.btn { padding: 9px 15px; font-size: 13px; font-weight: 500; gap: 7px; }
+.btn.primary { font-weight: 600; }
+.btn.big { padding: 11px 22px; font-size: 14px; }
+.btn.small { padding: 6px 12px; font-size: 12.5px; }
+.btn svg { width: 15px; height: 15px; }
+.chip { padding: 6px 12px; font-size: 12.5px; white-space: nowrap; }
+.chip.on { font-weight: 500; }
+.seg button { padding: 6px 12px; font-size: 12.5px; white-space: nowrap; }
+.seg button.on { font-weight: 500; }
+.bgroup button { font-size: 13px; font-weight: 500; padding: 7px 12px; }
+.bgroup > span { font-size: 12px; }
+.act { font-size: 12px; white-space: nowrap; }
+.act.on { font-weight: 500; }
+.act .ring-i { width: var(--ring, 46px); height: var(--ring, 46px); }
+.act svg { width: 20px; height: 20px; }
+.sentence { font-size: 15px; line-height: 1.95; }
+.sentence input { font-size: 15px; }
+.note { font-size: 12px; }
+.summary { font-size: 13.5px; }
+.qt b { font-size: 13px; font-weight: 500; }
+.qt small { font-size: 11.5px; }
+.item { padding: 11px 4px; gap: 14px; }
+.pname, .pname input { font-size: 14px; font-weight: 500; }
+.pdesc { font-size: 12.5px; }
+.tag { font-size: 11px; padding: 2px 9px; }
+.stime { font-size: clamp(22px, 2.2vh + 10px, 30px); }
+.day { width: 28px; height: 26px; font-size: 11px; }
+.adder .time-in input { font-size: 34px; }
+.adder .time-in .sep { font-size: 30px; }
+.select { padding: 7px 11px; font-size: 13px; }
+.inline-input { padding: 8px 13px; font-size: 13px; width: min(200px, 22vw); }
+.hist th { font-size: 11.5px; }
+.hist td { font-size: 13px; }
+.hist .sub { font-size: 11.5px; }
+.group h2 { font-size: 12px; letter-spacing: .02em; }
+.caps div { font-size: 12.5px; }
+.toast { font-size: 13px; }
+.dry { font-size: 12px; }
+.status-line { font-size: 12.5px; }

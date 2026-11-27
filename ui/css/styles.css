@@ -100,7 +100,7 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
 .mini.idle { opacity: .7; }
 
 .main { overflow-y: auto; position: relative; display: flex; flex-direction: column; padding-right: 10px; }
-.view { padding: 18px 36px 24px 20px; flex: 1; animation: in .35s var(--ease); }
+.view { padding: 18px 36px 24px 20px; flex: 1; }
 @keyframes in { from { opacity: 0; transform: translateY(6px); } }
 .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
 .eyebrow { font-size: 12.5px; color: var(--ink-3); }
@@ -441,3 +441,18 @@ h1 { font-size: 27px; font-weight: 600; letter-spacing: -.02em; line-height: 1.1
 [data-theme='light'] .cel-moon { fill: #3E4A7A; }
 .bgroup button, .tu span, .act { text-transform: capitalize; }
 .brand small { text-transform: capitalize; }
+
+/* ---------- Chuyển màn (View Transitions API) ----------
+   Chỉ vùng nội dung chính chuyển cảnh; phần còn lại (thanh bên, bầu trời) hiện trực tiếp trạng thái mới
+   để chỉ báo ở thanh bên vẫn trượt bằng transition CSS thường. */
+.main { view-transition-name: main; }
+::view-transition-old(root) { animation: none; opacity: 0; }
+::view-transition-new(root) { animation: none; }
+::view-transition-group(main) { animation-duration: .27s; }
+::view-transition-old(main) { animation: vt-out .12s cubic-bezier(.4, 0, 1, 1) both; }
+::view-transition-new(main) { animation: vt-in .22s var(--ease) .05s both; }
+@keyframes vt-out { to { opacity: 0; transform: translateY(-4px); } }
+@keyframes vt-in { from { opacity: 0; transform: translateY(8px); } }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}

@@ -153,12 +153,28 @@ function renderMini() {
     <div class="v num">${esc(v)}</div><div class="d">${esc(S.ACTIONS[j.action].label)}</div>`);
 }
 // Mọi lần vẽ lại đều "vá" DOM tại chỗ (xem morph.js): nút giữ nguyên nên transition CSS chạy
-// mượt và hoạt ảnh vào chỉ chạy khi thật sự đổi màn (mỗi màn có data-key riêng).
+// mượt. Chỉ khi thật sự đổi màn (trang ở thanh bên, hoặc thiết lập ↔ đang chạy) mới có chuyển cảnh:
+// dùng View Transitions API nếu có, không thì cho màn mới mờ dần lên bằng Web Animations.
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
+let shownKey = null;
+const viewKey = () => (view === 'timer' ? (snap?.job ? 'running' : 'setup') : view);
 function render() {
   if (!st) return;
+  const key = viewKey(), first = shownKey === null, swap = !first && key !== shownKey;
+  shownKey = key;
+  const motion = !reduceMotion.matches;
+  if (swap && motion && document.startViewTransition) { document.startViewTransition(() => draw(true)); return; }
+  draw(swap);
+  if ((swap || first) && motion) {
+    $('#main').firstElementChild?.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }],
+      { duration: 240, easing: 'cubic-bezier(.22, .9, .25, 1)' });
+  }
+}
+function draw(swapped) {
   applyTheme(); renderRail();
   const main = $('#main');
   morph(main, { timer: () => (snap?.job ? viewRunning() : viewSetup()), presets: viewPresets, schedules: viewSchedules, history: viewHistory, settings: viewSettings }[view]());
+  if (swapped) main.scrollTop = 0;
   if (view === 'timer' && !snap?.job) { renderDial(); bindDial(); }
   if (view === 'timer' && snap?.job) updateRunning();
   const r = $('[data-rename-input]'); if (r && document.activeElement !== r) { r.focus(); r.select(); }

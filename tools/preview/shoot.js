@@ -19,8 +19,16 @@ const flag = (k) => args.includes(k);
   p.on('pageerror', (e) => errors.push(e.message));
   p.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   const mock = fs.readFileSync(path.join(__dirname, 'mock-ipc.js'), 'utf8');
-  await p.addInitScript(`window.__MOCK__ = ${JSON.stringify({ theme, job: flag('--job') ? { action: 'shutdown', trigger: { type: 'countdown', seconds: 95 } } : null, dryRun: true,
-    history: Number(opt('--history', '6')), extra: Number(opt('--extra', '0')) })};\n${mock}`);
+  const mockCfg = {
+    theme,
+    job: flag('--job') ? { action: 'shutdown', trigger: { type: 'countdown', seconds: 95 } } : null,
+    dryRun: true,
+    history: Number(opt('--history', '6')),
+    extra: Number(opt('--extra', '0')),
+  };
+  if (opt('--presets', null) !== null) mockCfg.presets = Number(opt('--presets', '0'));
+  if (opt('--schedules', null) !== null) mockCfg.schedules = Number(opt('--schedules', '0'));
+  await p.addInitScript(`window.__MOCK__ = ${JSON.stringify(mockCfg)};\n${mock}`);
   await p.goto('file://' + path.resolve(__dirname, '../../ui', page + '.html'));
   await p.waitForTimeout(1200);
   for (const s of (opt('--steps', '') || '').split(';').filter(Boolean)) {

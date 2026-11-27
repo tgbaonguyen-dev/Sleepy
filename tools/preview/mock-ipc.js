@@ -32,6 +32,8 @@
     st.presets.push({ id: `px${i}`, name: `Preset ${i + 5}`, action: actions[i % 6], trigger: { type: 'countdown', seconds: 600 * (i + 1) } });
     st.schedules.push({ id: `sx${i}`, time: `${String(i % 24).padStart(2, '0')}:15`, days: [1, 3, 5], action: actions[i % 6], enabled: i % 2 === 0, lastArmed: 0 });
   }
+  if (typeof cfg.presets === 'number') st.presets = st.presets.slice(0, Math.max(0, cfg.presets));
+  if (typeof cfg.schedules === 'number') st.schedules = st.schedules.slice(0, Math.max(0, cfg.schedules));
   let job = null;
   const mkJob = (action, trigger, source) => {
     const t = now();

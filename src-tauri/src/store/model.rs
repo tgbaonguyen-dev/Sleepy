@@ -81,6 +81,13 @@ pub struct HistoryEntry {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MixPreset {
+    pub id: String,
+    pub name: String,
+    pub channels: Vec<(String, f32)>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Data {
     pub version: u32,
@@ -91,6 +98,12 @@ pub struct Data {
     pub job: Option<Job>,
     /// Bản nháp của màn hẹn giờ — giao diện tự quản lý cấu trúc.
     pub draft: Value,
+    /// Các bộ mix âm thanh do người dùng tự lưu.
+    #[serde(default)]
+    pub mix_presets: Vec<MixPreset>,
+    /// Đường dẫn các tệp nhạc cá nhân người dùng tự thêm.
+    #[serde(default)]
+    pub custom_tracks: Vec<String>,
 }
 
 impl Default for Data {
@@ -141,6 +154,8 @@ impl Default for Data {
             history: Vec::new(),
             job: None,
             draft: serde_json::json!({ "action": "shutdown", "trigger": { "type": "countdown", "seconds": 3600 } }),
+            mix_presets: Vec::new(),
+            custom_tracks: Vec::new(),
         }
     }
 }

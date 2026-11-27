@@ -4,10 +4,11 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use serde::Serialize;
 use serde_json::Value;
 
+use crate::audio::AudioController;
 use crate::domain::time::now_ms;
 use crate::engine::{Engine, Snapshot};
 use crate::sensors::{LinuxSensors, SensorSource};
-use crate::store::{HistoryEntry, Preset, Schedule, Settings, Store};
+use crate::store::{HistoryEntry, MixPreset, Preset, Schedule, Settings, Store};
 use crate::system::{KeepAwake, PowerControl};
 
 /// Toàn bộ trạng thái có thể thay đổi, bảo vệ bởi một mutex.
@@ -22,6 +23,7 @@ pub struct AppState {
     pub core: Mutex<Core>,
     pub power: Arc<dyn PowerControl>,
     pub awake: Mutex<KeepAwake>,
+    pub audio: AudioController,
 }
 
 impl AppState {
@@ -38,6 +40,7 @@ pub struct FullState {
     pub presets: Vec<Preset>,
     pub schedules: Vec<Schedule>,
     pub history: Vec<HistoryEntry>,
+    pub mix_presets: Vec<MixPreset>,
     pub draft: Value,
     pub caps: BTreeMap<String, String>,
     pub has_battery: bool,
@@ -54,6 +57,7 @@ impl Core {
             presets: d.presets.clone(),
             schedules: d.schedules.clone(),
             history: d.history.clone(),
+            mix_presets: d.mix_presets.clone(),
             draft: d.draft.clone(),
             caps: self.caps.clone(),
             has_battery: self.sensors.battery().is_some(),

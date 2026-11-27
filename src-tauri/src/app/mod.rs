@@ -13,6 +13,7 @@ use std::sync::{Arc, Mutex};
 
 use tauri::Manager;
 
+use crate::audio::AudioController;
 use crate::domain::time::now_ms;
 use crate::engine::Engine;
 use crate::sensors::LinuxSensors;
@@ -42,6 +43,9 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let mut awake = KeepAwake::new();
     awake.set(keep_awake)?;
 
+    let custom_tracks: Vec<PathBuf> = store.data.custom_tracks.iter().map(PathBuf::from).collect();
+    let audio = AudioController::start(app.handle().clone(), custom_tracks);
+
     app.manage(AppState {
         core: Mutex::new(Core {
             store,
@@ -51,6 +55,7 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         }),
         power,
         awake: Mutex::new(awake),
+        audio,
     });
 
     let handle = app.handle().clone();

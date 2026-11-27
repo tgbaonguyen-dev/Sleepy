@@ -8,7 +8,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-pub use model::{Data, HistoryEntry, Preset, Schedule, Settings};
+pub use model::{Data, HistoryEntry, MixPreset, Preset, Schedule, Settings};
 
 const FILE_NAME: &str = "sleepy.json";
 const HISTORY_LIMIT: usize = 200;

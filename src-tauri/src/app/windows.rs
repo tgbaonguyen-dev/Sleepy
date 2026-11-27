@@ -17,11 +17,18 @@ pub fn show_main(app: &AppHandle) {
 }
 
 /// Đóng cửa sổ chính thì ẩn xuống khay (nếu người dùng bật), hẹn giờ vẫn chạy.
+/// Cửa sổ YouTube khi bấm đóng cũng ẩn để giữ tiếng chạy nền.
 pub fn on_window_event(window: &Window, event: &WindowEvent) {
-    if window.label() != "main" {
-        return;
-    }
+    let label = window.label();
     if let WindowEvent::CloseRequested { api, .. } = event {
+        if label == "youtube" {
+            api.prevent_close();
+            window.hide().ok();
+            return;
+        }
+        if label != "main" {
+            return;
+        }
         let to_tray = window
             .app_handle()
             .state::<AppState>()
@@ -69,5 +76,56 @@ pub fn open_warning(app: &AppHandle) {
 pub fn close_warning(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("warning") {
         w.close().ok();
+    }
+}
+
+pub fn open_youtube(app: &AppHandle, raw_url: &str) -> Result<String, String> {
+    let parsed = tauri::Url::parse(raw_url).map_err(|e| format!("URL không hợp lệ: {e}"))?;
+    let host = parsed.host_str().unwrap_or("");
+    if !matches!(host, "music.youtube.com" | "www.youtube.com") {
+        return Err("Chỉ hỗ trợ YouTube và YouTube Music".into());
+    }
+
+    if let Some(w) = app.get_webview_window("youtube") {
+        let current_host = w.url().ok().and_then(|u| u.host_str().map(|s| s.to_string()));
+        if current_host.as_deref() != Some(host) {
+            w.navigate(parsed).map_err(|e| e.to_string())?;
+        }
+        w.unminimize().ok();
+        w.show().ok();
+        w.set_focus().ok();
+        return Ok("visible".into());
+    }
+
+    WebviewWindowBuilder::new(app, "youtube", WebviewUrl::External(parsed))
+        .title("Sleepy | YouTube Audio")
+        .inner_size(980.0, 680.0)
+        .decorations(true)
+        .center()
+        .build()
+        .map_err(|e| format!("Không mở được cửa sổ YouTube: {e}"))?;
+    Ok("visible".into())
+}
+
+pub fn hide_youtube(app: &AppHandle) -> String {
+    if let Some(w) = app.get_webview_window("youtube") {
+        w.hide().ok();
+        return "hidden".into();
+    }
+    "closed".into()
+}
+
+pub fn close_youtube(app: &AppHandle) -> String {
+    if let Some(w) = app.get_webview_window("youtube") {
+        w.destroy().ok();
+    }
+    "closed".into()
+}
+
+pub fn youtube_status(app: &AppHandle) -> String {
+    match app.get_webview_window("youtube") {
+        Some(w) if w.is_visible().unwrap_or(false) => "visible".into(),
+        Some(_) => "hidden".into(),
+        None => "closed".into(),
     }
 }

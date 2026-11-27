@@ -1,5 +1,5 @@
 /* global window */
-// Cầu nối giữa giao diện và lõi Rust: cung cấp `window.nghi` với cùng API ở mọi cửa sổ.
+// Cầu nối giữa giao diện và lõi Rust: cung cấp `window.sleepy` với cùng API ở mọi cửa sổ.
 (() => {
   const { invoke } = window.__TAURI__.core;
   const { listen } = window.__TAURI__.event;
@@ -11,7 +11,7 @@
     return () => unlisten && unlisten();
   };
 
-  window.nghi = {
+  window.sleepy = {
     getState: () => invoke('state_get'),
     start: (action, trigger, source) => invoke('job_start', { action, trigger, source }),
     cancel: () => invoke('job_cancel'),

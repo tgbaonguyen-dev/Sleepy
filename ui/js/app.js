@@ -1,4 +1,4 @@
-/* global Shared, Icons, nghi */
+/* global Shared, Icons, sleepy */
 const S = Shared;
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -84,7 +84,7 @@ function trigger(d = draft) {
   }
 }
 let draftTimer;
-function saveDraft() { clearTimeout(draftTimer); draftTimer = setTimeout(() => nghi.setDraft(draft), 400); }
+function saveDraft() { clearTimeout(draftTimer); draftTimer = setTimeout(() => sleepy.setDraft(draft), 400); }
 
 // ---------- Tiện ích ----------
 function toast(msg, err = false) {
@@ -484,49 +484,49 @@ function viewSettings() {
       <div class="set" style="display:block"><b>Ubuntu có cho phép không</b>
         <div class="caps" style="margin-top:10px">${ORDER.map((k) => { const c = capWord[st.caps?.[k]] || capWord.unknown; return `<div><span>${S.ACTIONS[k].label}</span><span class="${c[1]}">${c[0]}</span></div>`; }).join('')}</div></div>
     </div>
-    <p class="note">Nghỉ 1.1 · dữ liệu lưu tại ~/.config/Nghỉ/nghi.json</p>
+    <p class="note">Nghỉ 1.1 · dữ liệu lưu tại ~/.config/Nghỉ/sleepy.json</p>
   </section>`;
 }
 
 // ---------- Sự kiện ----------
 async function start(action, trig, source) {
-  const r = await nghi.start(action, trig, source);
+  const r = await sleepy.start(action, trig, source);
   if (!r.ok) toast(r.error, true); else toast(`Đã hẹn: ${S.describe(action, trig)}`);
 }
 document.addEventListener('click', async (e) => {
   const t = e.target.closest('button, [data-rename], .mini');
   if (!t) return;
   const ds = t.dataset;
-  if (ds.win) return nghi.win(ds.win);
+  if (ds.win) return sleepy.win(ds.win);
   if (ds.view) { view = ds.view; savingPreset = false; renaming = null; if (view === 'timer' && draft.type === 'process') loadProcs(); return render(); }
   if (ds.action) { draft.action = ds.action; saveDraft(); return render(); }
   if (ds.mode) { draft.type = ds.mode === 'cond' ? (draft.condType || 'idle') : ds.mode; saveDraft(); if (draft.type === 'process') loadProcs(); return render(); }
   if (ds.type) { draft.type = ds.type; draft.condType = ds.type; saveDraft(); if (ds.type === 'process') loadProcs(); return render(); }
   if (ds.chip) { const v = +ds.chip; draft.countdown = { h: Math.floor(v / 60), m: v % 60, s: 0 }; saveDraft(); return render(); }
   if (ds.chipAt) { const [h, m] = ds.chipAt.split(':').map(Number); draft.at = { h, m }; saveDraft(); return render(); }
-  if (ds.post) return nghi.postpone(+ds.post);
+  if (ds.post) return sleepy.postpone(+ds.post);
   if (ds.run) { const p = st.presets.find((x) => x.id === ds.run); if (p) { await start(p.action, p.trigger, `preset:${p.id}`); view = 'timer'; render(); } return; }
-  if (ds.delPreset) return nghi.setPresets(st.presets.filter((p) => p.id !== ds.delPreset));
-  if (ds.set) return nghi.setSettings({ [ds.set]: JSON.parse(ds.val) });
+  if (ds.delPreset) return sleepy.setPresets(st.presets.filter((p) => p.id !== ds.delPreset));
+  if (ds.set) return sleepy.setSettings({ [ds.set]: JSON.parse(ds.val) });
   if (ds.nday) { const d = +ds.nday; sched.days = sched.days.includes(d) ? sched.days.filter((x) => x !== d) : [...sched.days, d]; return render(); }
   if (ds.sday) {
     const [id, d] = ds.sday.split(':');
-    return nghi.setSchedules(st.schedules.map((s) => s.id !== id ? s : { ...s, days: s.days.includes(+d) ? s.days.filter((x) => x !== +d) : [...s.days, +d], lastArmed: 0 }));
+    return sleepy.setSchedules(st.schedules.map((s) => s.id !== id ? s : { ...s, days: s.days.includes(+d) ? s.days.filter((x) => x !== +d) : [...s.days, +d], lastArmed: 0 }));
   }
-  if (ds.stoggle) return nghi.setSchedules(st.schedules.map((s) => s.id === ds.stoggle ? { ...s, enabled: !s.enabled, lastArmed: 0 } : s));
-  if (ds.sdel) return nghi.setSchedules(st.schedules.filter((s) => s.id !== ds.sdel));
+  if (ds.stoggle) return sleepy.setSchedules(st.schedules.map((s) => s.id === ds.stoggle ? { ...s, enabled: !s.enabled, lastArmed: 0 } : s));
+  if (ds.sdel) return sleepy.setSchedules(st.schedules.filter((s) => s.id !== ds.sdel));
   switch (ds.do) {
     case 'start': return start(draft.action, trigger(), 'manual');
-    case 'cancel': await nghi.cancel(); return toast('Đã huỷ, máy cứ chạy tiếp');
-    case 'now': return nghi.now();
+    case 'cancel': await sleepy.cancel(); return toast('Đã huỷ, máy cứ chạy tiếp');
+    case 'now': return sleepy.now();
     case 'preset-new': savingPreset = true; return render();
     case 'preset-cancel': savingPreset = false; return render();
     case 'preset-save': return savePreset();
-    case 'hist-clear': return nghi.clearHistory();
+    case 'hist-clear': return sleepy.clearHistory();
     case 'sched-add': {
       if (!sched.days.length) return toast('Chọn ít nhất một ngày nhé', true);
       const id = Math.random().toString(16).slice(2, 12);
-      await nghi.setSchedules([...st.schedules, { id, time: `${pad(sched.h)}:${pad(sched.m)}`, days: [...sched.days].sort(), action: sched.action, enabled: true, lastArmed: 0 }]);
+      await sleepy.setSchedules([...st.schedules, { id, time: `${pad(sched.h)}:${pad(sched.m)}`, days: [...sched.days].sort(), action: sched.action, enabled: true, lastArmed: 0 }]);
       return toast(`Đã thêm lịch ${pad(sched.h)}:${pad(sched.m)}`);
     }
   }
@@ -535,7 +535,7 @@ document.addEventListener('dblclick', (e) => { const t = e.target.closest('[data
 function commitRename(input) {
   const name = input.value.trim(), id = input.dataset.renameInput;
   renaming = null;
-  if (name) nghi.setPresets(st.presets.map((p) => p.id === id ? { ...p, name } : p)); else render();
+  if (name) sleepy.setPresets(st.presets.map((p) => p.id === id ? { ...p, name } : p)); else render();
 }
 async function savePreset() {
   const name = $('#preset-name')?.value.trim();
@@ -543,7 +543,7 @@ async function savePreset() {
   const t = trigger();
   if (t.type === 'countdown' && !t.seconds) return toast('Chọn thời gian lớn hơn 0 nhé', true);
   savingPreset = false;
-  await nghi.setPresets([...st.presets, { id: Math.random().toString(16).slice(2, 12), name, action: draft.action, trigger: t }]);
+  await sleepy.setPresets([...st.presets, { id: Math.random().toString(16).slice(2, 12), name, action: draft.action, trigger: t }]);
   toast(`Đã lưu preset “${name}”`);
 }
 function setDial(input, val) {
@@ -566,7 +566,7 @@ document.addEventListener('input', (e) => {
 });
 document.addEventListener('change', (e) => {
   const t = e.target;
-  if (t.dataset.text) nghi.setSettings({ [t.dataset.text]: t.value });
+  if (t.dataset.text) sleepy.setSettings({ [t.dataset.text]: t.value });
   if ('sact' in t.dataset) sched.action = t.value;
 });
 document.addEventListener('focusout', (e) => {
@@ -593,11 +593,11 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ---------- Tiến trình ----------
-async function loadProcs() { procList = await nghi.processes(); const dl = $('#procs'); if (dl) dl.innerHTML = procList.map((p) => `<option value="${esc(p)}">`).join(''); checkProc(); }
+async function loadProcs() { procList = await sleepy.processes(); const dl = $('#procs'); if (dl) dl.innerHTML = procList.map((p) => `<option value="${esc(p)}">`).join(''); checkProc(); }
 let procTimer;
 function checkProc() {
   clearTimeout(procTimer);
-  procTimer = setTimeout(async () => { const n = draft.process.name.trim(); procRunning = n ? await nghi.checkProcess(n) : null; renderDial(); }, 250);
+  procTimer = setTimeout(async () => { const n = draft.process.name.trim(); procRunning = n ? await sleepy.checkProcess(n) : null; renderDial(); }, 250);
 }
 
 // ---------- Khởi động ----------
@@ -605,13 +605,13 @@ function checkProc() {
   const ctl = document.querySelectorAll('.winctl button');
   ctl[0].innerHTML = Icons.min; ctl[1].innerHTML = Icons.max; ctl[2].innerHTML = Icons.close;
   $('#brand-ico').innerHTML = Icons.moon;
-  st = await nghi.getState();
+  st = await sleepy.getState();
   snap = { job: st.job, sensors: st.sensors, next: st.next };
   draft = initDraft(st.draft);
   render();
   if (draft.type === 'process') loadProcs();
 
-  nghi.onState((s) => {
+  sleepy.onState((s) => {
     const hadJob = !!snap?.job;
     st = s; snap = { job: s.job, sensors: s.sensors, next: s.next };
     if (!hadJob && s.job) view = 'timer';
@@ -622,7 +622,7 @@ function checkProc() {
   });
 
   let tickN = 0;
-  nghi.onTick((s) => {
+  sleepy.onTick((s) => {
     const changed = !!snap?.job !== !!s.job || snap?.job?.phase !== s.job?.phase || snap?.job?.id !== s.job?.id;
     snap = s;
     if (s.sensors.cpu != null) { spark.cpu.push(s.sensors.cpu); if (spark.cpu.length > 60) spark.cpu.shift(); }

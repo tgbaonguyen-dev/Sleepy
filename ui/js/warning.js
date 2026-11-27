@@ -1,4 +1,4 @@
-/* global Shared, Icons, nghi */
+/* global Shared, Icons, sleepy */
 const S = Shared;
 let st = null, last = null, ctx = null, firstTotal = null;
 const TAU = Math.PI * 2;
@@ -44,10 +44,10 @@ function paint(j) {
   const sec = Math.ceil(j.remaining / 1000);
   if (sec <= 10 && sec > 0 && sec !== last) { last = sec; tone(sec <= 3 ? 880 : 660, 0.18, 0.06); }
 }
-document.querySelectorAll('[data-post]').forEach((b) => { b.onclick = () => { firstTotal = null; nghi.postpone(+b.dataset.post); }; });
-document.getElementById('cancel').onclick = () => nghi.cancel();
-document.getElementById('now').onclick = () => nghi.now();
-nghi.getState().then((s) => { st = s; theme(); paint(s.job); chime(); });
-nghi.onState((s) => { st = s; theme(); paint(s.job); });
-nghi.onTick((s) => paint(s.job));
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') nghi.cancel(); });
+document.querySelectorAll('[data-post]').forEach((b) => { b.onclick = () => { firstTotal = null; sleepy.postpone(+b.dataset.post); }; });
+document.getElementById('cancel').onclick = () => sleepy.cancel();
+document.getElementById('now').onclick = () => sleepy.now();
+sleepy.getState().then((s) => { st = s; theme(); paint(s.job); chime(); });
+sleepy.onState((s) => { st = s; theme(); paint(s.job); });
+sleepy.onTick((s) => paint(s.job));
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') sleepy.cancel(); });

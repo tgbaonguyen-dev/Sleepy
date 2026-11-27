@@ -1,5 +1,8 @@
-//! Cửa sổ chính và cửa sổ cảnh báo.
+//! Cửa sổ chính, cửa sổ cảnh báo và cửa sổ YouTube phát nền.
 
+use std::sync::Mutex;
+
+use serde::Serialize;
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder, Window, WindowEvent};
 
 use super::AppState;
@@ -7,6 +10,24 @@ use super::AppState;
 const WARN_W: f64 = 460.0;
 const WARN_H: f64 = 250.0;
 const MARGIN: f64 = 14.0;
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct YtMediaState {
+    pub status: String,
+    pub title: Option<String>,
+    pub source: Option<String>,
+    pub video_id: Option<String>,
+    pub artwork: Option<String>,
+}
+
+#[derive(Default)]
+struct YtThumbCache {
+    video_id: String,
+    data_url: Option<String>,
+}
+
+static YT_CACHE: Mutex<Option<YtThumbCache>> = Mutex::new(None);
 
 pub fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
@@ -128,4 +149,138 @@ pub fn youtube_status(app: &AppHandle) -> String {
         Some(_) => "hidden".into(),
         None => "closed".into(),
     }
+}
+
+pub fn youtube_control(app: &AppHandle, action: &str) -> Result<(), String> {
+    let Some(w) = app.get_webview_window("youtube") else {
+        return Ok(());
+    };
+    let js = match action {
+        "toggle" => {
+            "(() => { const v = document.querySelector('video'); if (v) { if (v.paused) v.play(); else v.pause(); return; } const b = document.querySelector('#play-pause-button, .ytp-play-button'); if (b) b.click(); })()"
+        }
+        "next" => {
+            "(() => { const b = document.querySelector('.next-button, .ytp-next-button'); if (b) b.click(); })()"
+        }
+        "prev" => {
+            "(() => { const b = document.querySelector('.previous-button, .ytp-prev-button'); if (b) b.click(); })()"
+        }
+        _ => return Ok(()),
+    };
+    w.eval(js).map_err(|e| e.to_string())
+}
+
+pub fn youtube_media(app: &AppHandle) -> YtMediaState {
+    let Some(w) = app.get_webview_window("youtube") else {
+        return YtMediaState {
+            status: "closed".into(),
+            title: None,
+            source: None,
+            video_id: None,
+            artwork: None,
+        };
+    };
+
+    let status = if w.is_visible().unwrap_or(false) {
+        "visible"
+    } else {
+        "hidden"
+    }
+    .to_string();
+
+    let url = w.url().ok();
+    let host = url
+        .as_ref()
+        .and_then(|u| u.host_str())
+        .unwrap_or("www.youtube.com");
+    let source = if host == "music.youtube.com" {
+        "YouTube Music"
+    } else {
+        "YouTube"
+    }
+    .to_string();
+
+    let raw_title = w.title().ok().unwrap_or_default();
+    let cleaned = raw_title
+        .trim()
+        .trim_end_matches(" - YouTube Music")
+        .trim_end_matches(" - YouTube")
+        .trim();
+    let title = if cleaned.is_empty()
+        || cleaned == "YouTube"
+        || cleaned == "YouTube Music"
+        || cleaned == "Sleepy | YouTube Audio"
+    {
+        None
+    } else {
+        Some(cleaned.to_string())
+    };
+
+    let video_id = url.as_ref().and_then(|u| {
+        u.query_pairs()
+            .find(|(k, _)| k == "v")
+            .map(|(_, v)| v.into_owned())
+            .filter(|id| !id.is_empty() && id.len() <= 20)
+    });
+
+    let artwork = video_id.as_deref().and_then(fetch_yt_thumbnail_cached);
+
+    YtMediaState {
+        status,
+        title,
+        source: Some(source),
+        video_id,
+        artwork,
+    }
+}
+
+fn fetch_yt_thumbnail_cached(video_id: &str) -> Option<String> {
+    {
+        let guard = YT_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(cache) = guard.as_ref() {
+            if cache.video_id == video_id {
+                return cache.data_url.clone();
+            }
+        }
+    }
+
+    let url = format!("https://i.ytimg.com/vi/{video_id}/hqdefault.jpg");
+    let output = std::process::Command::new("curl")
+        .args(["-fsSL", "--max-time", "4", &url])
+        .output()
+        .ok();
+    let data_url = output
+        .filter(|o| o.status.success() && !o.stdout.is_empty())
+        .map(|o| format!("data:image/jpeg;base64,{}", encode_base64(&o.stdout)));
+
+    let mut guard = YT_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    *guard = Some(YtThumbCache {
+        video_id: video_id.to_string(),
+        data_url: data_url.clone(),
+    });
+    data_url
+}
+
+fn encode_base64(input: &[u8]) -> String {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(input.len().div_ceil(3) * 4);
+    for chunk in input.chunks(3) {
+        let b0 = chunk[0] as u32;
+        let b1 = if chunk.len() > 1 { chunk[1] as u32 } else { 0 };
+        let b2 = if chunk.len() > 2 { chunk[2] as u32 } else { 0 };
+        let triple = (b0 << 16) | (b1 << 8) | b2;
+        out.push(TABLE[((triple >> 18) & 0x3f) as usize] as char);
+        out.push(TABLE[((triple >> 12) & 0x3f) as usize] as char);
+        if chunk.len() > 1 {
+            out.push(TABLE[((triple >> 6) & 0x3f) as usize] as char);
+        } else {
+            out.push('=');
+        }
+        if chunk.len() > 2 {
+            out.push(TABLE[(triple & 0x3f) as usize] as char);
+        } else {
+            out.push('=');
+        }
+    }
+    out
 }

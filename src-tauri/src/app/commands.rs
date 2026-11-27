@@ -459,3 +459,13 @@ pub fn yt_close(app: AppHandle) -> String {
 pub fn yt_status(app: AppHandle) -> String {
     super::windows::youtube_status(&app)
 }
+
+#[tauri::command]
+pub fn yt_media(app: AppHandle) -> super::windows::YtMediaState {
+    super::windows::youtube_media(&app)
+}
+
+#[tauri::command]
+pub fn yt_control(app: AppHandle, action: String) -> Result<(), String> {
+    super::windows::youtube_control(&app, &action)
+}

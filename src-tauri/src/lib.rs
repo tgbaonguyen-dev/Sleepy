@@ -64,6 +64,8 @@ pub fn run() {
             yt_hide,
             yt_close,
             yt_status,
+            yt_media,
+            yt_control,
         ])
         .run(tauri::generate_context!())
         .expect("không khởi động được Sleepy");

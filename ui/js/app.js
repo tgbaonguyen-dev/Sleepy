@@ -258,7 +258,7 @@ function viewSetup() {
     <div class="head"><div><div class="eyebrow" id="greet">${greet()}</div><h1>Khi nào cho máy nghỉ?</h1></div></div>
     <div class="setup">
       <div class="stage">
-        <div class="dial ${isCond(d.type) ? '' : 'drag'}" id="dial"><svg viewBox="0 0 330 330" id="dial-svg" data-own></svg><div class="center" id="dial-center" data-own></div></div>
+        <div class="dial ${isCond(d.type) ? '' : 'drag'}" id="dial" ${dialAttrs()}><svg viewBox="0 0 330 330" id="dial-svg" data-own></svg><div class="center" id="dial-center" data-own></div></div>
         ${chips ? `<div class="chips clip-fit">${chips}</div>` : `<svg id="spark" viewBox="0 0 280 48" style="width:280px;height:48px;overflow:visible" data-own></svg>`}
       </div>
       <div class="side">
@@ -334,6 +334,15 @@ function setDialVal(v) {
   if (draft.type === 'countdown') draft.countdown = { h: Math.floor(v / 60), m: v % 60, s: 0 };
   else draft.at = { h: Math.floor(v / 60), m: v % 60 };
 }
+const hm = (v) => { const h = Math.floor(v / 60), m = v % 60; return h && m ? `${h} giờ ${m} phút` : h ? `${h} giờ` : `${m} phút`; };
+// Thuộc tính slider cho trình đọc màn hình; dùng cả trong mẫu HTML (viewSetup) lẫn khi kéo (syncDialAria)
+function dialAria(d = draft) {
+  if (d.type === 'countdown') return { role: 'slider', tabindex: '0', 'aria-label': 'Thời gian chờ', 'aria-valuemin': '0', 'aria-valuemax': String(CD_MAX), 'aria-valuenow': String(dialVal(d)), 'aria-valuetext': hm(dialVal(d)) };
+  if (d.type === 'at') return { role: 'slider', tabindex: '0', 'aria-label': 'Giờ hẹn', 'aria-valuemin': '0', 'aria-valuemax': String(DAY - 1), 'aria-valuenow': String(dialVal(d)), 'aria-valuetext': `${d.at.h} giờ ${d.at.m} phút` };
+  return {};
+}
+const dialAttrs = () => Object.entries(dialAria()).map(([k, v]) => `${k}="${esc(v)}"`).join(' ');
+function syncDialAria() { const el = $('#dial'); if (el) for (const [k, v] of Object.entries(dialAria())) if (el.getAttribute(k) !== v) el.setAttribute(k, v); }
 function syncChips() {
   const cur = draft.type === 'countdown' ? dialVal() : null, at = draft.type === 'at' ? `${pad(draft.at.h)}:${pad(draft.at.m)}` : null;
   document.querySelectorAll('.stage [data-chip]').forEach((c) => c.classList.toggle('on', cur === +c.dataset.chip && !draft.countdown.s));
@@ -428,6 +437,7 @@ function renderDial({ dur = 300 } = {}) {
     } else if (!dv.drag && target !== dv.target) { dv.target = target; dialAnimate(target, dur); }
     paintDial();
     morph(center, dialCenter());
+    syncDialAria();
     return;
   }
   dv.svg = null; svg.dataset.k = 'cond';
@@ -478,7 +488,7 @@ function dragApply() {
   const v = dv.key === 'countdown' ? clamp(Math.round(raw / st5) * st5, 0, CD_MAX) : mod(Math.round(raw / st5) * st5, DAY);
   if (v !== dialVal()) {
     setDialVal(v); dv.target = v; saveDraft();
-    morph($('#dial-center'), dialCenter()); updateSummary(); syncChips();
+    morph($('#dial-center'), dialCenter()); updateSummary(); syncChips(); syncDialAria();
   }
   dialSchedule();
 }

@@ -1,4 +1,4 @@
-/* global Shared, Icons, sleepy */
+/* global Shared, Icons, Dropdown, sleepy */
 const S = Shared;
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -18,6 +18,7 @@ const VIEWS = [['timer', 'Hẹn giờ', 'timer'], ['presets', 'Preset', 'bookmar
 const ORDER = ['shutdown', 'reboot', 'suspend', 'hibernate', 'lock', 'logout'];
 const CONDS = [['idle', 'Không đụng máy'], ['net', 'Tải xong'], ['cpu', 'Máy hết bận'], ['process', 'Tắt một app'], ['battery', 'Pin sắp cạn']];
 const isCond = (t) => !['countdown', 'at'].includes(t);
+Dropdown.define('action', ORDER.map((k) => ({ value: k, label: S.ACTIONS[k].label, icon: Icons[k] })));
 
 // ---------- Hình học vòng tròn ----------
 const pt = (c, r, f) => [c + r * Math.sin(f * TAU), c - r * Math.cos(f * TAU)];
@@ -665,8 +666,9 @@ function viewSchedules() {
     const next = snap?.next?.find((n) => n.id === sc.id)?.at;
     return `<div class="item ${sc.enabled ? '' : 'off'}" data-row data-key="s-${sc.id}" style="animation-delay:${i * 40}ms">
       <span class="stime num">${sc.time}</span>
-      <div><div class="days" style="margin-bottom:8px">${days(sc.days, sc.id)}</div>
-        <div class="pdesc"><b style="color:var(--ink);font-weight:600">${S.ACTIONS[sc.action].label}</b> · ${sc.enabled ? (next ? `lần tới ${S.dayWord(next)} ${S.hhmm(next)}` : 'chưa chọn ngày') : 'đang tắt'}</div></div>
+      <div class="sinfo"><div class="days">${days(sc.days, sc.id)}</div>
+        <div class="pdesc">${sc.enabled ? (next ? `Lần tới ${S.dayWord(next)} ${S.hhmm(next)}` : 'Chưa chọn ngày') : 'Đang tắt'}</div></div>
+      ${Dropdown.html({ opts: 'action', value: sc.action, key: `dd-s-${sc.id}`, attrs: `data-sact-row="${sc.id}"`, cls: 'dd-row', title: 'Hành động' })}
       <button class="switch ${sc.enabled ? 'on' : ''}" data-stoggle="${sc.id}" title="Bật/tắt"></button>
       <button class="icon-btn" data-sdel="${sc.id}" title="Xoá">${Icons.trash}</button>
     </div>`;
@@ -676,7 +678,7 @@ function viewSchedules() {
     <div class="card adder">
       <div><div class="label">Giờ</div><div class="time-in"><input class="num" data-dial="sched.h" data-max="23" value="${pad(sched.h)}" maxlength="2"><span class="sep">:</span><input class="num" data-dial="sched.m" data-max="59" value="${pad(sched.m)}" maxlength="2"></div></div>
       <div><div class="label">Ngày</div><div class="days">${days(sched.days)}</div></div>
-      <div><div class="label">Hành động</div><select class="select" data-sact>${ORDER.map((k) => `<option value="${k}" ${sched.action === k ? 'selected' : ''}>${S.ACTIONS[k].label}</option>`).join('')}</select></div>
+      <div><div class="label" id="lbl-sact">Hành động</div>${Dropdown.html({ opts: 'action', value: sched.action, key: 'dd-new', attrs: 'data-sact', labelledby: 'lbl-sact' })}</div>
       <button class="btn primary" data-do="sched-add" title="Thêm lịch">${Icons.plus}<span>Thêm lịch</span></button>
     </div>
     <div class="list fit" data-fit="schedules">${rows || '<div class="empty">Chưa có lịch nào. Chọn giờ và ngày ở trên rồi bấm Thêm lịch.</div>'}</div>
@@ -823,7 +825,11 @@ document.addEventListener('input', (e) => {
 document.addEventListener('change', (e) => {
   const t = e.target;
   if (t.dataset.text) sleepy.setSettings({ [t.dataset.text]: t.value });
-  if ('sact' in t.dataset) sched.action = t.value;
+  if ('sact' in t.dataset) sched.action = t.dataset.value;
+  if (t.dataset.sactRow) {
+    const id = t.dataset.sactRow, action = t.dataset.value;
+    sleepy.setSchedules(st.schedules.map((s) => s.id === id ? { ...s, action } : s));
+  }
 });
 document.addEventListener('focusout', (e) => {
   const t = e.target;

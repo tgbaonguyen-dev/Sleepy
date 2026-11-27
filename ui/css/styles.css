@@ -266,7 +266,7 @@ html.dragging-dial, html.dragging-dial * { cursor: grabbing !important; -webkit-
 .icon-btn:hover { color: var(--danger); background: var(--surface-2); }
 .empty { padding: 56px 20px; color: var(--ink-3); text-align: center; border: 1px dashed var(--line-2); border-radius: 22px; }
 .presets .item { grid-template-columns: 42px 1fr auto auto auto; }
-.sched .item { grid-template-columns: 110px 1fr auto auto; }
+.sched .item { grid-template-columns: 110px minmax(0, 1fr) auto auto auto; }
 .stime { font-size: 34px; font-weight: 300; letter-spacing: -.03em; }
 .item.off { opacity: .5; }
 .days { display: flex; gap: 4px; }
@@ -275,8 +275,6 @@ html.dragging-dial, html.dragging-dial * { cursor: grabbing !important; -webkit-
 .adder { display: flex; flex-wrap: wrap; gap: 18px 22px; align-items: flex-end; padding: 18px 20px; margin-bottom: 18px; }
 .adder .time-in input { font-size: 40px; }
 .adder .time-in .sep { font-size: 34px; }
-.select { border: 1px solid var(--line-2); background: var(--surface); border-radius: 12px; padding: 8px 12px; min-width: 140px; }
-.select option { background: var(--bg1); }
 .adder .btn { margin-left: auto; }
 
 .switch { width: 42px; height: 24px; border-radius: 12px; background: var(--surface-3); position: relative; flex: none; transition: background .25s var(--ease); }
@@ -389,7 +387,7 @@ html.dragging-dial, html.dragging-dial * { cursor: grabbing !important; -webkit-
 [data-theme='light'] .orb::before { opacity: .5; }
 [data-theme='light'] .sentence input { background: #FFFFFF; border-radius: 6px; }
 [data-theme='light'] .sentence input:focus { box-shadow: none; }
-[data-theme='light'] .inline-input, [data-theme='light'] .mono, [data-theme='light'] .select { border-radius: 6px; background: #FFFFFF; }
+[data-theme='light'] .inline-input, [data-theme='light'] .mono { border-radius: 6px; background: #FFFFFF; }
 [data-theme='light'] .day { border-radius: 6px; background: #FFFFFF; }
 [data-theme='light'] .day.on { background: #FCE7DC; color: var(--moon); border-color: #F3CDBA; }
 [data-theme='light'] .switch.on { background: var(--moon); }
@@ -592,7 +590,6 @@ body { font-size: 13.5px; }
 .day { width: 28px; height: 26px; font-size: 11px; }
 .adder .time-in input { font-size: 34px; }
 .adder .time-in .sep { font-size: 30px; }
-.select { padding: 7px 11px; font-size: 13px; }
 .inline-input { padding: 8px 13px; font-size: 13px; width: min(200px, 22vw); }
 .hist th { font-size: 11.5px; }
 .hist td { font-size: 13px; }
@@ -650,7 +647,6 @@ body { font-size: 13.5px; }
   .adder { gap: 12px 16px; }
   .adder .time-in input { font-size: 28px; }
   .adder .time-in .sep { font-size: 24px; }
-  .adder .select { min-width: 0; }
   .day { width: 26px; }
 }
 @media (max-width: 760px) {
@@ -709,3 +705,8 @@ body { font-size: 13.5px; }
 [data-theme='light'] .dd-menu [role='option'] .dd-ico { background: #F4EDE5; color: var(--ink-2); }
 [data-theme='light'] .dd-menu [role='option'].active { background: #F7F0E8; }
 [data-theme='light'] .dd-menu [aria-selected='true'] .dd-ico { background: #FCE7DC; color: var(--moon); }
+
+/* Lịch lặp: mỗi dòng có ô chọn hành động riêng, cùng bề ngang để các cột thẳng hàng */
+.sinfo .days { margin-bottom: 6px; }
+.dd-row .dd-btn { height: 36px; width: 178px; }
+.dd-row .dd-ico { width: 26px; height: 26px; }

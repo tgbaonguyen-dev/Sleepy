@@ -132,7 +132,7 @@ function renderMini() {
   const j = snap?.job;
   if (!j) {
     el.className = 'mini idle';
-    el.innerHTML = `<svg viewBox="0 0 46 46"><circle cx="23" cy="23" r="19" fill="none" stroke-width="3" class="track"/></svg><div class="v">Nghỉ</div><div class="d">chưa hẹn</div>`;
+    el.innerHTML = `<svg viewBox="0 0 46 46"><circle cx="23" cy="23" r="19" fill="none" stroke-width="3" class="track"/></svg><div class="v">Sleepy</div><div class="d">chưa hẹn</div>`;
     return;
   }
   el.className = 'mini';
@@ -182,7 +182,7 @@ function viewSetup() {
         <div><div class="label">Muốn làm gì</div><div class="acts">${acts}</div></div>
         <div><div class="label">Lúc nào</div>
           <div class="seg wide"><button class="${mode === 'countdown' ? 'on' : ''}" data-mode="countdown">Sau bao lâu</button><button class="${mode === 'at' ? 'on' : ''}" data-mode="at">Đúng giờ</button><button class="${mode === 'cond' ? 'on' : ''}" data-mode="cond">Khi xong việc</button></div></div>
-        ${mode === 'cond' ? condCard() : `<p class="note">${mode === 'countdown' ? 'Kéo chấm tròn quanh vòng để chỉnh phút, vòng qua đỉnh là thêm một giờ. Hoặc lăn chuột lên các con số.' : 'Kéo chấm tròn tới giờ bạn muốn. Nếu giờ đó đã qua, Nghỉ hiểu là ngày mai.'}</p>`}
+        ${mode === 'cond' ? condCard() : `<p class="note">${mode === 'countdown' ? 'Kéo chấm tròn quanh vòng để chỉnh phút, vòng qua đỉnh là thêm một giờ. Hoặc lăn chuột lên các con số.' : 'Kéo chấm tròn tới giờ bạn muốn. Nếu giờ đó đã qua, Sleepy hiểu là ngày mai.'}</p>`}
         ${quick.length ? `<div><div class="label">Hay dùng</div><div class="quick">${quick.slice(0, 3).map((p) => `<button class="q" data-run="${p.id}" title="${esc(S.describe(p.action, p.trigger))}">
           <span class="qi">${Icons[p.action]}</span><span class="qt"><b>${esc(p.name)}</b><small>${esc(quickDesc(p))}</small></span><span class="qa">${Icons.play}</span></button>`).join('')}</div></div>` : ''}
       </div>
@@ -211,14 +211,14 @@ function condCard() {
   }).join('');
   let s = '', note = '';
   switch (d.type) {
-    case 'idle': s = `Khi bạn không đụng tới chuột hay bàn phím trong <input class="num" data-field="idle.minutes" value="${c.minutes}"> phút`; note = 'Hợp lúc xem phim dễ ngủ quên. Bạn chạm chuột là Nghỉ đếm lại từ đầu.'; break;
+    case 'idle': s = `Khi bạn không đụng tới chuột hay bàn phím trong <input class="num" data-field="idle.minutes" value="${c.minutes}"> phút`; note = 'Hợp lúc xem phim dễ ngủ quên. Bạn chạm chuột là Sleepy đếm lại từ đầu.'; break;
     case 'battery': s = `Khi pin còn dưới <input class="num" data-field="battery.percent" value="${c.percent}">% mà chưa cắm sạc`; note = 'Cho máy nghỉ trước khi sập nguồn giữa chừng.'; break;
     case 'net': s = `Khi mạng chậm dưới <input class="num" data-field="net.kbps" value="${c.kbps}" style="width:4ch"> KB/s suốt <input class="num" data-field="net.minutes" value="${c.minutes}"> phút`; note = 'Đang tải game, phim hay bản cập nhật? Tải xong là máy tự nghỉ.'; break;
     case 'cpu': s = `Khi máy chỉ dùng dưới <input class="num" data-field="cpu.percent" value="${c.percent}">% CPU suốt <input class="num" data-field="cpu.minutes" value="${c.minutes}"> phút`; note = 'Để máy render video, build code hay nén file, xong việc thì nghỉ.'; break;
     case 'process': s = `Khi <input class="wide" data-field="process.name" value="${esc(c.name)}" list="procs" placeholder="firefox" spellcheck="false"> đóng lại<datalist id="procs">${procList.map((p) => `<option value="${esc(p)}">`).join('')}</datalist>`; note = 'Gõ tên app như trong System Monitor, ví dụ firefox hay obs.'; break;
   }
   return `<div class="card cond"><div class="chips">${tabs}</div><div class="sentence">${s}</div>
-    <p class="note">${note ? note + ' ' : ''}Đến lúc đó, Nghỉ vẫn chờ thêm ${st.settings.graceSeconds} giây và báo trước để bạn kịp đổi ý.</p></div>`;
+    <p class="note">${note ? note + ' ' : ''}Đến lúc đó, Sleepy vẫn chờ thêm ${st.settings.graceSeconds} giây và báo trước để bạn kịp đổi ý.</p></div>`;
 }
 
 function summaryHtml() {
@@ -434,7 +434,7 @@ function viewSchedules() {
       <button class="btn primary" data-do="sched-add">${Icons.plus} Thêm lịch</button>
     </div>
     <div class="list">${rows || '<div class="empty">Chưa có lịch nào. Chọn giờ và ngày ở trên rồi bấm Thêm lịch.</div>'}</div>
-    <p class="note" style="margin-top:16px">Lịch chỉ chạy khi Nghỉ đang mở, kể cả lúc ẩn dưới khay. Bật “Mở cùng máy” trong Cài đặt cho chắc.</p>
+    <p class="note" style="margin-top:16px">Lịch chỉ chạy khi Sleepy đang mở, kể cả lúc ẩn dưới khay. Bật “Mở cùng máy” trong Cài đặt cho chắc.</p>
   </section>`;
 }
 
@@ -466,10 +466,10 @@ function setRow(title, desc, ctl) { return `<div class="set"><div><b>${title}</b
 function viewSettings() {
   const capWord = { yes: ['Được', 'yes'], challenge: ['Cần mật khẩu', ''], no: ['Không', 'no'], na: ['Không hỗ trợ', 'no'], unknown: ['Chưa rõ', ''] };
   return `<section class="view">
-    <div class="head"><div><div class="eyebrow">Cài đặt</div><h1>Tuỳ chỉnh Nghỉ</h1></div></div>
+    <div class="head"><div><div class="eyebrow">Cài đặt</div><h1>Tuỳ chỉnh Sleepy</h1></div></div>
     <div class="card group"><h2>Cảnh báo</h2>
       ${setRow('Báo trước', 'Một cửa sổ nhỏ hiện ở góc màn hình để bạn kịp hoãn hoặc huỷ.', seg('warnMinutes', [[0, 'Không'], [1, '1 phút'], [2, '2 phút'], [5, '5 phút'], [10, '10 phút']]))}
-      ${setRow('Chờ thêm sau khi xong việc', 'Với kiểu hẹn “Khi xong việc”, Nghỉ chờ thêm một chút rồi mới làm.', seg('graceSeconds', [[30, '30 giây'], [60, '60 giây'], [120, '2 phút']]))}
+      ${setRow('Chờ thêm sau khi xong việc', 'Với kiểu hẹn “Khi xong việc”, Sleepy chờ thêm một chút rồi mới làm.', seg('graceSeconds', [[30, '30 giây'], [60, '60 giây'], [120, '2 phút']]))}
       ${setRow('Âm báo', 'Chuông nhẹ lúc báo trước và trong 10 giây cuối.', sw('sound'))}
       ${setRow('Chế độ thử', 'Đến giờ chỉ hiện thông báo, máy không tắt thật. Hợp để thử lịch.', sw('dryRun'))}
     </div>
@@ -484,7 +484,7 @@ function viewSettings() {
       <div class="set" style="display:block"><b>Ubuntu có cho phép không</b>
         <div class="caps" style="margin-top:10px">${ORDER.map((k) => { const c = capWord[st.caps?.[k]] || capWord.unknown; return `<div><span>${S.ACTIONS[k].label}</span><span class="${c[1]}">${c[0]}</span></div>`; }).join('')}</div></div>
     </div>
-    <p class="note">Nghỉ 1.1 · dữ liệu lưu tại ~/.config/Nghỉ/sleepy.json</p>
+    <p class="note">Sleepy 1.1 · dữ liệu lưu tại ~/.config/Sleepy/sleepy.json</p>
   </section>`;
 }
 

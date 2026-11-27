@@ -265,7 +265,7 @@ function viewSetup() {
         <div><div class="label">Muốn làm gì</div><div class="acts">${acts}</div></div>
         <div><div class="label">Lúc nào</div>
           <div class="seg wide" data-morph-keep="style"><button class="${mode === 'countdown' ? 'on' : ''}" data-mode="countdown">Sau bao lâu</button><button class="${mode === 'at' ? 'on' : ''}" data-mode="at">Đúng giờ</button><button class="${mode === 'cond' ? 'on' : ''}" data-mode="cond">Khi xong việc</button></div></div>
-        ${mode === 'cond' ? condCard() : `<p class="note">${mode === 'countdown' ? 'Nắm vòng tròn rồi xoay để chỉnh, qua đỉnh là thêm một giờ. Hoặc lăn chuột lên các con số.' : 'Nắm vòng tròn rồi xoay tới giờ bạn muốn. Nếu giờ đó đã qua, Sleepy hiểu là ngày mai.'}</p>`}
+        ${mode === 'cond' ? condCard() : `<p class="note">${mode === 'countdown' ? 'Nắm vòng tròn rồi xoay để chỉnh, qua đỉnh là thêm một giờ. Lăn chuột hay bấm phím mũi tên để chỉnh từng phút, giữ Shift để nhảy 5 phút.' : 'Nắm vòng tròn rồi xoay tới giờ bạn muốn. Nếu giờ đó đã qua, Sleepy hiểu là ngày mai.'}</p>`}
         ${quick.length ? `<div class="quick-w" style="--qn:${quick.length}"><div class="label">Hay dùng</div><div class="quick clip-fit">${quick.map((p) => `<button class="q" data-run="${p.id}" title="${esc(S.describe(p.action, p.trigger))}">
           <span class="qi">${Icons[p.action]}</span><span class="qt"><b>${esc(p.name)}</b><small>${esc(quickDesc(p))}</small></span><span class="qa">${Icons.play}</span></button>`).join('')}</div></div>` : ''}
       </div>
@@ -544,6 +544,36 @@ function bindDial() {
   const end = (e) => { if (pend && e.pointerId === pend.id) pend = null; if (dv.drag && e.pointerId === dv.drag.id) finish(); };
   for (const t of ['pointerup', 'pointercancel', 'lostpointercapture']) dial.addEventListener(t, end);
 
+  // Lăn chuột / phím mũi tên trên vòng (trên từng ô số thì vẫn chỉnh riêng ô đó, xem stepDial)
+  const nudge = (dir, step, dur) => {
+    // Ô số đang gõ dở trên mặt vòng: chốt nó trước (focusout ghi vào bản nháp) để không hiện số cũ
+    const typing = dial.querySelector('input:focus'); if (typing) { typing.blur(); dial.focus({ preventScroll: true }); }
+    const cur = dialVal();
+    let v = step * (dir > 0 ? Math.floor(cur / step) + 1 : Math.ceil(cur / step) - 1); // bám lưới bước
+    v = dv.key === 'countdown' ? clamp(v, 0, CD_MAX) : mod(v, DAY);
+    if (v === cur) return;
+    setDialVal(v); saveDraft(); dialChanged({ dur });
+  };
+  let wheelAcc = 0;
+  dial.addEventListener('wheel', (e) => {
+    if (!active() || e.target.closest('[data-dial]')) return;
+    e.preventDefault();
+    wheelAcc += (e.deltaY || e.deltaX) * (e.deltaMode === 1 ? 33 : 1);
+    if (Math.abs(wheelAcc) < 40) return;
+    const dir = wheelAcc < 0 ? 1 : -1; wheelAcc = 0;
+    nudge(dir, dialStep(e.shiftKey), 140);
+  }, { passive: false });
+  dial.addEventListener('keydown', (e) => {
+    if (e.target !== dial || !active()) return;
+    const big = 60, k = e.key;
+    let dir = 0, step = dialStep(e.shiftKey);
+    if (k === 'ArrowUp' || k === 'ArrowRight') dir = 1;
+    else if (k === 'ArrowDown' || k === 'ArrowLeft') dir = -1;
+    else if (k === 'PageUp') { dir = 1; step = big; } else if (k === 'PageDown') { dir = -1; step = big; }
+    else if ((k === 'Home' || k === 'End') && dv.key === 'countdown') { e.preventDefault(); setDialVal(k === 'Home' ? 0 : CD_MAX); saveDraft(); dialChanged(); return; }
+    if (!dir) return;
+    e.preventDefault(); nudge(dir, step, 140);
+  });
 }
 
 // ---------- 01 Hẹn giờ: đang chạy ----------

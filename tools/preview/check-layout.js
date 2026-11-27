@@ -21,6 +21,8 @@ const STATES = [
   ['setup-cond-net', ['[data-type=net]']],
   ['setup-cond-process', ['[data-type=process]']],
   ['setup-saving', ['[data-mode=countdown]', '[data-do=preset-new]']],
+  ['sounds', ['[data-view=sounds]']],
+  ['sounds-lofi', ['[data-snd=lofi]']],
   ['presets', ['[data-view=presets]']],
   ['presets-p2', ['[data-page="presets:1"]']],
   ['schedules', ['[data-view=schedules]']],

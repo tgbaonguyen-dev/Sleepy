@@ -1,4 +1,4 @@
-/* global Shared, Icons, Dropdown, sleepy */
+/* global Shared, Icons, Dropdown, Ambient, sleepy */
 const S = Shared;
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -14,9 +14,9 @@ let setTab = 'warn'; // nhóm cài đặt đang mở khi cửa sổ nhỏ (rộn
 const pages = { presets: { page: 0, per: 8 }, schedules: { page: 0, per: 6 }, history: { page: 0, per: 10 } };
 const sched = { h: 23, m: 30, days: [1, 2, 3, 4, 5], action: 'shutdown' };
 
-const VIEWS = [['timer', 'Hẹn giờ', 'timer'], ['presets', 'Preset', 'bookmark'], ['schedules', 'Lịch lặp', 'repeat'], ['history', 'Nhật ký', 'history'], ['settings', 'Cài đặt', 'gear']];
+const VIEWS = [['timer', 'Hẹn giờ', 'timer'], ['sounds', 'Âm thanh', 'sound'], ['presets', 'Preset', 'bookmark'], ['schedules', 'Lịch lặp', 'repeat'], ['history', 'Nhật ký', 'history'], ['settings', 'Cài đặt', 'gear']];
 const ORDER = ['shutdown', 'reboot', 'suspend', 'hibernate', 'lock', 'logout'];
-const CONDS = [['idle', 'Không đụng máy'], ['net', 'Tải xong'], ['cpu', 'Máy hết bận'], ['process', 'Tắt một app'], ['battery', 'Pin sắp cạn']];
+const CONDS = [['idle', 'Không hoạt động'], ['net', 'Lưu lượng mạng'], ['cpu', 'Mức sử dụng CPU'], ['process', 'Ứng dụng kết thúc'], ['battery', 'Mức pin']];
 const isCond = (t) => !['countdown', 'at'].includes(t);
 Dropdown.define('action', ORDER.map((k) => ({ value: k, label: S.ACTIONS[k].label, icon: Icons[k] })));
 
@@ -104,17 +104,16 @@ function applyTheme() {
 }
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 function sourceLabel(src) {
-  if (!src || src === 'manual') return 'Hẹn thủ công';
+  if (!src || src === 'manual') return 'Thủ công';
   const [k, id] = src.split(':');
-  if (k === 'preset') return `Preset “${st.presets.find((p) => p.id === id)?.name || '—'}”`;
+  if (k === 'preset') return `Preset "${st.presets.find((p) => p.id === id)?.name || '—'}"`;
   if (k === 'schedule') { const s = st.schedules.find((x) => x.id === id); return `Lịch lặp ${s ? s.time : ''}`; }
   return src;
 }
 function capOk(a) { const c = st.caps?.[a]; return !c || c === 'yes' || c === 'challenge' || c === 'unknown'; }
 function greet() {
-  const d = new Date(), h = d.getHours();
-  const part = h < 5 ? 'Khuya rồi' : h < 11 ? 'Chào buổi sáng' : h < 14 ? 'Buổi trưa' : h < 18 ? 'Chào buổi chiều' : 'Chào buổi tối';
-  return `${part} · ${S.DAY_LONG[d.getDay()]} ${S.hhmm(d)}`;
+  const d = new Date();
+  return `${S.DAY_LONG[d.getDay()]} · ${S.hhmm(d)}`;
 }
 function roll(el, text) {
   if (!el) return;
@@ -138,7 +137,7 @@ function roll(el, text) {
 function renderRail() {
   const active = st.schedules.filter((s) => s.enabled).length;
   morph($('#rail'), VIEWS.map(([k, label, ic]) => `<button data-view="${k}" class="${view === k ? 'on' : ''}" title="${label} (Ctrl+${VIEWS.findIndex((v) => v[0] === k) + 1})">
-    ${Icons[ic]}<span>${label}</span>${k === 'schedules' && active ? `<span class="badge">${active}</span>` : ''}</button>`).join('') + `<div class="mini" id="mini" data-view="timer" data-own></div>`);
+    ${Icons[ic]}<span>${label}</span>${k === 'schedules' && active ? `<span class="badge">${active}</span>` : ''}${k === 'sounds' && Ambient.playing ? '<span class="eq" aria-label="Đang phát"><i></i><i></i><i></i></span>' : ''}</button>`).join('') + `<div class="mini" id="mini" data-view="timer" data-own></div>`);
   renderMini();
 }
 function renderMini() {
@@ -146,7 +145,7 @@ function renderMini() {
   const j = snap?.job;
   if (!j) {
     el.className = 'mini idle';
-    morph(el, `<svg viewBox="0 0 46 46"><circle cx="23" cy="23" r="19" fill="none" stroke-width="3" class="track"/></svg><div class="v">Sleepy</div><div class="d">chưa hẹn</div>`);
+    morph(el, `<svg viewBox="0 0 46 46"><circle cx="23" cy="23" r="19" fill="none" stroke-width="3" class="track"/></svg><div class="v">Sleepy</div><div class="d">Không có hẹn giờ</div>`);
     return;
   }
   el.className = 'mini';
@@ -178,11 +177,9 @@ function render() {
 function draw() {
   applyTheme(); renderRail();
   const main = $('#main');
-  const html = () => ({ timer: () => (snap?.job ? viewRunning() : viewSetup()), presets: viewPresets, schedules: viewSchedules, history: viewHistory, settings: viewSettings }[view]());
+  const html = () => ({ timer: () => (snap?.job ? viewRunning() : viewSetup()), sounds: viewSounds, presets: viewPresets, schedules: viewSchedules, history: viewHistory, settings: viewSettings }[view]());
   morph(main, html());
   for (let i = 0; i < 3 && fitPages(); i++) morph(main, html());
-  // "Hay dùng" co theo chỗ trống (CSS cắt bớt dòng); không còn dòng nào vừa thì ẩn luôn cả nhãn
-  const q = $('.quick'); if (q) q.parentElement.classList.toggle('none', q.clientHeight < q.firstElementChild.offsetHeight);
   if (view === 'timer' && !snap?.job) { renderDial(); bindDial(); }
   if (view === 'timer' && snap?.job) updateRunning();
   const r = $('[data-rename-input]'); if (r && document.activeElement !== r) { r.focus(); r.select(); }
@@ -243,9 +240,8 @@ function viewSetup() {
   const d = draft, mode = isCond(d.type) ? 'cond' : d.type;
   const acts = ORDER.map((k) => {
     const ok = capOk(k);
-    return `<button class="act ${d.action === k ? 'on' : ''}" data-action="${k}" ${ok ? '' : 'disabled title="Hệ thống không cho phép"'} title="${S.ACTIONS[k].hint}"><span class="ring-i">${Icons[k]}</span>${S.ACTIONS[k].label}</button>`;
+    return `<button class="act ${d.action === k ? 'on' : ''}" data-action="${k}" ${ok ? '' : 'disabled title="Hành động không được hệ thống hỗ trợ"'} title="${S.ACTIONS[k].hint}"><span class="ring-i">${Icons[k]}</span>${S.ACTIONS[k].label}</button>`;
   }).join('');
-  const quick = st.presets.slice(0, 5);
   let chips = '';
   if (d.type === 'countdown') {
     const tot = d.countdown.h * 60 + d.countdown.m;
@@ -256,53 +252,45 @@ function viewSetup() {
     chips = ['22:00', '22:30', '23:00', '23:30', '00:00', '00:30', '01:00'].map((v) => `<button class="chip ${cur === v ? 'on' : ''}" data-chip-at="${v}">${v}</button>`).join('');
   }
   return `<section class="view" data-key="v-setup">
-    <div class="head"><div><div class="eyebrow" id="greet">${greet()}</div><h1>Khi nào cho máy nghỉ?</h1></div></div>
+    <div class="head"><div><div class="eyebrow" id="greet">${greet()}</div><h1>Thiết lập hẹn giờ</h1></div></div>
     <div class="setup">
       <div class="stage">
         <div class="dial ${isCond(d.type) ? '' : 'drag'}" id="dial" ${dialAttrs()}><svg viewBox="0 0 330 330" id="dial-svg" data-own></svg><div class="center" id="dial-center" data-own></div></div>
         ${chips ? `<div class="chips clip-fit">${chips}</div>` : `<svg id="spark" viewBox="0 0 280 48" style="width:280px;height:48px;overflow:visible" data-own></svg>`}
       </div>
       <div class="side">
-        <div><div class="label">Muốn làm gì</div><div class="acts">${acts}</div></div>
-        <div><div class="label">Lúc nào</div>
-          <div class="seg wide" data-morph-keep="style"><button class="${mode === 'countdown' ? 'on' : ''}" data-mode="countdown">Sau bao lâu</button><button class="${mode === 'at' ? 'on' : ''}" data-mode="at">Đúng giờ</button><button class="${mode === 'cond' ? 'on' : ''}" data-mode="cond">Khi xong việc</button></div></div>
-        ${mode === 'cond' ? condCard() : `<p class="note">${mode === 'countdown' ? 'Nắm vòng tròn rồi xoay để chỉnh, qua đỉnh là thêm một giờ. Lăn chuột hay bấm phím mũi tên để chỉnh từng phút, giữ Shift để nhảy 5 phút.' : 'Nắm vòng tròn rồi xoay tới giờ bạn muốn. Nếu giờ đó đã qua, Sleepy hiểu là ngày mai.'}</p>`}
-        ${quick.length ? `<div class="quick-w" style="--qn:${quick.length}"><div class="label">Hay dùng</div><div class="quick clip-fit">${quick.map((p) => `<button class="q" data-run="${p.id}" title="${esc(S.describe(p.action, p.trigger))}">
-          <span class="qi">${Icons[p.action]}</span><span class="qt"><b>${esc(p.name)}</b><small>${esc(quickDesc(p))}</small></span><span class="qa">${Icons.play}</span></button>`).join('')}</div></div>` : ''}
+        <div id="side-actions"><div class="label">Hành động</div><div class="acts">${acts}</div></div>
+        <div id="side-mode"><div class="label">Thời điểm</div>
+          <div class="seg wide" data-morph-keep="style"><button class="${mode === 'countdown' ? 'on' : ''}" data-mode="countdown">Thời lượng</button><button class="${mode === 'at' ? 'on' : ''}" data-mode="at">Giờ cụ thể</button><button class="${mode === 'cond' ? 'on' : ''}" data-mode="cond">Điều kiện</button></div></div>
+        <div id="side-detail">${mode === 'cond' ? condCard() : `<p class="note">${mode === 'countdown' ? 'Kéo vòng để đặt thời lượng. Dùng con lăn hoặc phím mũi tên để điều chỉnh; giữ Shift để thay đổi theo bước 5 phút.' : 'Kéo vòng để chọn giờ thực hiện. Giờ đã qua sẽ được áp dụng cho ngày hôm sau.'}</p>`}</div>
       </div>
     </div>
   </section>
   <div class="bar" data-key="bar-setup">
     <div class="summary" id="summary">${summaryHtml()}</div>
     ${savingPreset
-      ? `<input id="preset-name" class="inline-input" placeholder="Tên preset…" maxlength="40"><button class="btn" data-key="preset-save" data-do="preset-save">Lưu</button><button class="btn ghost" data-key="preset-cancel" data-do="preset-cancel">Thôi</button>`
+      ? `<input id="preset-name" class="inline-input" placeholder="Tên preset" maxlength="40"><button class="btn" data-key="preset-save" data-do="preset-save">Lưu</button><button class="btn ghost" data-key="preset-cancel" data-do="preset-cancel">Huỷ</button>`
       : `<button class="btn ghost" data-key="preset-new" data-do="preset-new">${Icons.bookmark} Lưu làm preset</button>`}
-    <button class="btn primary big" data-key="start" data-do="start">${Icons.play} Bắt đầu</button>
+    <button class="btn primary big" data-key="start" data-do="start">${Icons.play} Bắt đầu hẹn giờ</button>
   </div>`;
 }
 
-function quickDesc(p) {
-  const t = p.trigger, a = S.ACTIONS[p.action].label;
-  if (t.type === 'countdown') return `${a} sau ${S.human(t.seconds * 1000)}`;
-  if (t.type === 'at') return `${a} lúc ${t.time}`;
-  return `${a} khi ${S.TRIGGERS[t.type].toLowerCase()}`;
-}
 function condCard() {
   const d = draft, c = d[d.type];
   const tabs = CONDS.map(([k, l]) => {
     const dis = k === 'battery' && !st.hasBattery;
-    return `<button class="chip ${d.type === k ? 'on' : ''}" data-type="${k}" ${dis ? 'disabled title="Máy không có pin" style="opacity:.4"' : ''}>${l}</button>`;
+    return `<button class="chip ${d.type === k ? 'on' : ''}" data-type="${k}" ${dis ? 'disabled title="Không phát hiện pin" style="opacity:.4"' : ''}>${l}</button>`;
   }).join('');
   let s = '', note = '';
   switch (d.type) {
-    case 'idle': s = `Khi bạn không đụng tới chuột hay bàn phím trong <input class="num" data-field="idle.minutes" value="${c.minutes}"> phút`; note = 'Hợp lúc xem phim dễ ngủ quên. Bạn chạm chuột là Sleepy đếm lại từ đầu.'; break;
-    case 'battery': s = `Khi pin còn dưới <input class="num" data-field="battery.percent" value="${c.percent}">% mà chưa cắm sạc`; note = 'Cho máy nghỉ trước khi sập nguồn giữa chừng.'; break;
-    case 'net': s = `Khi mạng chậm dưới <input class="num" data-field="net.kbps" value="${c.kbps}" style="width:4ch"> KB/s suốt <input class="num" data-field="net.minutes" value="${c.minutes}"> phút`; note = 'Đang tải game, phim hay bản cập nhật? Tải xong là máy tự nghỉ.'; break;
-    case 'cpu': s = `Khi máy chỉ dùng dưới <input class="num" data-field="cpu.percent" value="${c.percent}">% CPU suốt <input class="num" data-field="cpu.minutes" value="${c.minutes}"> phút`; note = 'Để máy render video, build code hay nén file, xong việc thì nghỉ.'; break;
-    case 'process': s = `Khi <input class="wide" data-field="process.name" value="${esc(c.name)}" list="procs" placeholder="firefox" spellcheck="false"> đóng lại<datalist id="procs">${procList.map((p) => `<option value="${esc(p)}">`).join('')}</datalist>`; note = 'Gõ tên app như trong System Monitor, ví dụ firefox hay obs.'; break;
+    case 'idle': s = `Sau <input class="num" data-field="idle.minutes" value="${c.minutes}"> phút không có thao tác chuột hoặc bàn phím`; note = 'Bộ đếm được đặt lại khi phát hiện thao tác.'; break;
+    case 'battery': s = `Khi pin dưới <input class="num" data-field="battery.percent" value="${c.percent}">% và thiết bị không kết nối nguồn`; note = 'Điều kiện không được kích hoạt trong lúc sạc.'; break;
+    case 'net': s = `Khi lưu lượng mạng dưới <input class="num" data-field="net.kbps" value="${c.kbps}" style="width:4ch"> KB/s trong <input class="num" data-field="net.minutes" value="${c.minutes}"> phút`; note = 'Ngưỡng được đánh giá liên tục trong khoảng thời gian đã chọn.'; break;
+    case 'cpu': s = `Khi CPU dưới <input class="num" data-field="cpu.percent" value="${c.percent}">% trong <input class="num" data-field="cpu.minutes" value="${c.minutes}"> phút`; note = 'Mức sử dụng CPU phải duy trì dưới ngưỡng trong toàn bộ khoảng thời gian.'; break;
+    case 'process': s = `Khi tiến trình <input class="wide" data-field="process.name" value="${esc(c.name)}" list="procs" placeholder="firefox" spellcheck="false"> kết thúc<datalist id="procs">${procList.map((p) => `<option value="${esc(p)}">`).join('')}</datalist>`; note = 'Nhập tên tiến trình như hiển thị trong System Monitor.'; break;
   }
   return `<div class="card cond"><div class="chips">${tabs}</div><div class="sentence">${s}</div>
-    <p class="note">${note ? note + ' ' : ''}Đến lúc đó, Sleepy vẫn chờ thêm ${st.settings.graceSeconds} giây và báo trước để bạn kịp đổi ý.</p></div>`;
+    <p class="note">${note ? note + ' ' : ''}Sau khi điều kiện được đáp ứng, hệ thống chờ thêm ${st.settings.graceSeconds} giây trước khi thực hiện hành động.</p></div>`;
 }
 
 function summaryHtml() {
@@ -352,8 +340,8 @@ function syncChips() {
 
 function dialSkeleton(type) {
   const hand = `<g id="dial-hand">${celestial(0, 0, true, 1, 'handle-g cel-day')}${celestial(0, 0, false, 1, 'handle-g cel-night')}</g>`;
-  const arcEl = '<path id="dial-arc" class="arc" fill="none" stroke-width="16" stroke-linecap="round"/>';
-  const track = `<circle class="track" cx="${DC}" cy="${DC}" r="${DR}" fill="none" stroke-width="16"/>`;
+  const arcEl = '<path id="dial-arc" class="arc" fill="none" stroke-width="10" stroke-linecap="round"/>';
+  const track = `<circle class="track" cx="${DC}" cy="${DC}" r="${DR}" fill="none" stroke-width="10"/>`;
   if (type === 'countdown') {
     return DEFS + ticks(DC, DR - 20, 60, 5) + track +
       `<circle id="dial-hours" cx="${DC}" cy="${DC}" r="${DR + 14}" fill="none" stroke-width="2" stroke-dasharray="2 6" style="stroke:var(--moon);opacity:.35"/>` + arcEl + hand;
@@ -400,7 +388,7 @@ function dialFrame(ts) {
 }
 const dialSchedule = () => { if (!dv.raf) dv.raf = requestAnimationFrame(dialFrame); };
 // Trượt từ dv.vis tới `to`. Kiểu "Đúng giờ" đi đường ngắn nhất quanh mặt 24 giờ.
-function dialAnimate(to, dur = 300) {
+function dialAnimate(to, dur = 180) {
   if (dv.key === 'at') to = dv.vis + (mod(to - dv.vis + DAY / 2, DAY) - DAY / 2);
   if (reduceMotion.matches || dur <= 0 || Math.abs(to - dv.vis) < 1e-3) { dv.anim = null; dv.vis = dv.key === 'at' ? mod(to, DAY) : to; paintDial(); return; }
   dv.anim = { from: dv.vis, to, t0: performance.now(), dur };
@@ -412,7 +400,7 @@ function dialCenter() {
     const { h, m } = d.countdown, tot = h * 60 + m, end = Date.now() + tot * 60000;
     return `<div class="time-in v"><div class="tu"><input class="num" data-dial="countdown.h" data-max="23" value="${h}" maxlength="2" inputmode="numeric" aria-label="Giờ"><span>giờ</span></div>
       <span class="sep">:</span><div class="tu"><input class="num" data-dial="countdown.m" data-max="59" value="${pad(m)}" maxlength="2" inputmode="numeric" aria-label="Phút"><span>phút</span></div></div>
-      <div class="sub" id="dial-sub">${tot ? `${S.ACTIONS[d.action].label.toLowerCase()} lúc ${S.hhmm(end)} ${S.dayWord(end)}` : 'chưa chọn'}</div>`;
+      <div class="sub" id="dial-sub">${tot ? `${S.ACTIONS[d.action].label.toLowerCase()} lúc ${S.hhmm(end)} ${S.dayWord(end)}` : 'Chưa đặt thời gian'}</div>`;
   }
   const end = S.atDeadline(trigger().time);
   return `<div class="time-in v"><input class="num" data-dial="at.h" data-max="23" value="${pad(d.at.h)}" maxlength="2" inputmode="numeric" aria-label="Giờ"><span class="sep">:</span>
@@ -420,7 +408,7 @@ function dialCenter() {
     <div class="sub" id="dial-sub">${S.dayWord(end)}, còn ${S.human(end - Date.now())}</div>`;
 }
 // dur: thời gian trượt khi giá trị đổi (0 = nhảy ngay)
-function renderDial({ dur = 300 } = {}) {
+function renderDial({ dur = 180 } = {}) {
   const svg = $('#dial-svg'), center = $('#dial-center'); if (!svg) return;
   const d = draft, s = snap?.sensors || {};
   if (d.type === 'countdown' || d.type === 'at') {
@@ -434,7 +422,7 @@ function renderDial({ dur = 300 } = {}) {
       document.documentElement.classList.remove('dragging-dial');
       const from = dv.vis, to = d.type === 'at' ? from + mod(target - from, DAY) : target; // "Đúng giờ" luôn quét xuôi từ bây giờ
       if (reduceMotion.matches) dv.vis = d.type === 'at' ? mod(to, DAY) : to;
-      else { dv.anim = { from, to, t0: performance.now(), dur: 420 }; dialSchedule(); }
+      else { dv.anim = { from, to, t0: performance.now(), dur: 260 }; dialSchedule(); }
     } else if (!dv.drag && target !== dv.target) { dv.target = target; dialAnimate(target, dur); }
     paintDial();
     morph(center, dialCenter());
@@ -445,16 +433,16 @@ function renderDial({ dur = 300 } = {}) {
   let body = '', cHtml = '';
   const c = d[d.type]; let v = 0, th = null, val = '—', sub = '', cap = '';
   switch (d.type) {
-    case 'idle': cap = 'Bạn đã rời máy'; v = s.idle == null ? 0 : Math.min(1, s.idle / (c.minutes * 60)); val = s.idle == null ? '—' : S.clock(s.idle * 1000); sub = `cần đủ ${c.minutes} phút`; break;
-    case 'battery': cap = 'Pin'; v = s.battery ? s.battery.percent / 100 : 0; th = c.percent / 100; val = s.battery ? `${s.battery.percent}%` : '—'; sub = s.battery ? (s.battery.charging ? 'đang cắm sạc' : 'đang dùng pin') : 'không thấy pin'; break;
-    case 'net': { cap = 'Tốc độ mạng'; const top = Math.max(c.kbps * 4, ...spark.net, 1); v = Math.min(1, (s.net || 0) / top); th = c.kbps / top; val = S.kb(s.net); sub = `chờ xuống dưới ${c.kbps} KB/s`; break; }
-    case 'cpu': cap = 'Máy đang dùng'; v = (s.cpu || 0) / 100; th = c.percent / 100; val = s.cpu == null ? '—' : `${Math.round(s.cpu)}%`; sub = `chờ xuống dưới ${c.percent}%`; break;
-    case 'process': cap = 'Ứng dụng'; v = procRunning ? 1 : 0; val = !c.name.trim() ? '—' : procRunning == null ? '…' : procRunning ? 'Đang mở' : 'Chưa mở'; sub = c.name.trim() ? `“${c.name.trim()}”` : 'chưa chọn app'; break;
+    case 'idle': cap = 'Thời gian không hoạt động'; v = s.idle == null ? 0 : Math.min(1, s.idle / (c.minutes * 60)); val = s.idle == null ? '—' : S.clock(s.idle * 1000); sub = `ngưỡng ${c.minutes} phút`; break;
+    case 'battery': cap = 'Mức pin'; v = s.battery ? s.battery.percent / 100 : 0; th = c.percent / 100; val = s.battery ? `${s.battery.percent}%` : '—'; sub = s.battery ? (s.battery.charging ? 'đang kết nối nguồn' : 'đang sử dụng pin') : 'không có dữ liệu pin'; break;
+    case 'net': { cap = 'Lưu lượng mạng'; const top = Math.max(c.kbps * 4, ...spark.net, 1); v = Math.min(1, (s.net || 0) / top); th = c.kbps / top; val = S.kb(s.net); sub = `ngưỡng dưới ${c.kbps} KB/s`; break; }
+    case 'cpu': cap = 'Mức sử dụng CPU'; v = (s.cpu || 0) / 100; th = c.percent / 100; val = s.cpu == null ? '—' : `${Math.round(s.cpu)}%`; sub = `ngưỡng dưới ${c.percent}%`; break;
+    case 'process': cap = 'Tiến trình'; v = procRunning ? 1 : 0; val = !c.name.trim() ? '—' : procRunning == null ? '…' : procRunning ? 'Đang chạy' : 'Không hoạt động'; sub = c.name.trim() ? `"${c.name.trim()}"` : 'chưa chọn tiến trình'; break;
   }
   const g0 = 0.625, span = 0.75;
-  body = `<path d="${arc(DC, DR, g0, g0 + span)}" fill="none" stroke-width="16" stroke-linecap="round" class="track"/>` +
-    `<path class="arc" d="${arc(DC, DR, g0, g0 + span * Math.max(0.002, v))}" fill="none" stroke-width="16" stroke-linecap="round"/>`;
-  if (th != null) { const [x0, y0] = pt(DC, DR - 16, g0 + span * th), [x1, y1] = pt(DC, DR + 16, g0 + span * th); body += `<line class="th" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}"/>`; }
+  body = `<path d="${arc(DC, DR, g0, g0 + span)}" fill="none" stroke-width="10" stroke-linecap="round" class="track"/>` +
+    `<path class="arc" d="${arc(DC, DR, g0, g0 + span * Math.max(0.002, v))}" fill="none" stroke-width="10" stroke-linecap="round"/>`;
+  if (th != null) { const [x0, y0] = pt(DC, DR - 10, g0 + span * th), [x1, y1] = pt(DC, DR + 10, g0 + span * th); body += `<line class="th" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}"/>`; }
   cHtml = `<div class="cap">${cap}</div><div class="live num${val.length > 7 ? ' long' : ''}">${esc(val)}</div><div class="sub">${esc(sub)}</div>`;
   const sp = $('#spark');
   if (sp) {
@@ -474,7 +462,7 @@ function renderDial({ dur = 300 } = {}) {
 // sau khi con trỏ đi quá vài px mới tính là kéo và vòng xoay theo độ lệch góc như vặn một núm thật.
 // Ấn một cái lên con số (không kéo) vẫn đặt con trỏ vào ô để gõ.
 // U là góc tích luỹ tính bằng vòng: Sau bao lâu thì 1 vòng = 60 phút, qua đỉnh là sang giờ kế; Đúng giờ thì 1 vòng = 24 giờ.
-const RING = 0.62, DRAG_SLOP = 4;
+const RING = 0.62, DRAG_SLOP = 3;
 function dialStep(shift) { return dv.key === 'countdown' ? (shift ? 5 : 1) : 5; }
 function dragApply() {
   const g = dv.drag;
@@ -515,7 +503,7 @@ function bindDial() {
     if (!dv.drag) return;
     dv.drag = null;
     document.documentElement.classList.remove('dragging-dial');
-    dialAnimate(dv.target, 180); // thả tay: núm trượt nhẹ về đúng vạch đang hiện
+    dialAnimate(dv.target, 100); // thả tay: núm trượt nhẹ về đúng vạch đang hiện
   };
   dial.addEventListener('pointerdown', (e) => {
     if (!active() || e.button !== 0 || dv.drag) return;
@@ -562,7 +550,7 @@ function bindDial() {
     wheelAcc += (e.deltaY || e.deltaX) * (e.deltaMode === 1 ? 33 : 1);
     if (Math.abs(wheelAcc) < 40) return;
     const dir = wheelAcc < 0 ? 1 : -1; wheelAcc = 0;
-    nudge(dir, dialStep(e.shiftKey), 140);
+    nudge(dir, dialStep(e.shiftKey), 90);
   }, { passive: false });
   dial.addEventListener('keydown', (e) => {
     if (e.target !== dial || !active()) return;
@@ -573,7 +561,7 @@ function bindDial() {
     else if (k === 'PageUp') { dir = 1; step = big; } else if (k === 'PageDown') { dir = -1; step = big; }
     else if ((k === 'Home' || k === 'End') && dv.key === 'countdown') { e.preventDefault(); setDialVal(k === 'Home' ? 0 : CD_MAX); saveDraft(); dialChanged(); return; }
     if (!dir) return;
-    e.preventDefault(); nudge(dir, step, 140);
+    e.preventDefault(); nudge(dir, step, 90);
   });
 }
 
@@ -594,31 +582,70 @@ function viewRunning() {
   const a = S.ACTIONS[j.action].label;
   return `<section class="view running" data-key="v-running">
     <div class="eyebrow rise">${greet()}</div>
+    <button class="awake-pill ${st.settings.keepAwake ? 'on' : ''}" data-set="keepAwake" data-val="${!st.settings.keepAwake}" title="${st.settings.keepAwake ? 'Màn hình và hệ thống được duy trì ở trạng thái hoạt động' : 'Cho phép màn hình tắt theo cài đặt hệ thống'}">
+      ${Icons.moon}<span>${st.settings.keepAwake ? 'Đang giữ hệ thống hoạt động' : 'Giữ hệ thống hoạt động'}</span>
+    </button>
     <div class="orb rise d1" id="orb" data-morph-keep="class"><svg viewBox="0 0 400 400" id="orb-svg" data-own></svg>
       <div class="center"><div class="icon">${Icons[j.action]}</div><div class="big num" id="big" data-own></div>
         <div class="what" id="what" data-own></div><div class="src">${esc(sourceLabel(j.source))}</div></div></div>
     <div class="status-line" id="status-line" data-own></div>
-    <div class="controls rise d2" id="controls">${j.phase === 'countdown' ? `<div class="bgroup"><span>Hoãn</span><button data-post="5">5 phút</button><button data-post="15">15 phút</button><button data-post="60">1 giờ</button></div>` : ''}<button class="btn ghost" data-key="now" data-do="now">${esc(a)} ngay</button><button class="btn danger" data-key="cancel" data-do="cancel">Huỷ hẹn</button></div>
-    ${st.settings.dryRun ? '<div class="dry">Chế độ thử đang bật — đến giờ chỉ báo, máy không tắt thật</div>' : ''}
+    <div class="controls rise d2" id="controls">${j.phase === 'countdown' ? `<div class="bgroup"><span>Hoãn</span><button data-post="5">5 phút</button><button data-post="15">15 phút</button><button data-post="60">1 giờ</button></div>` : ''}<button class="btn ghost" data-key="now" data-do="now">Thực hiện ngay</button><button class="btn danger" data-key="cancel" data-do="cancel">Huỷ hẹn</button></div>
+    ${st.settings.dryRun ? '<div class="dry">Chế độ thử: chỉ hiển thị cảnh báo, không thực hiện hành động</div>' : ''}
   </section>`;
 }
+
+const runDial = { svg: null, orb: null, deadline: 0, total: 0, raf: 0 };
+function runningDialSkeleton() {
+  return DEFS + ticks(200, 188, 60, 5, 4) +
+    '<circle cx="200" cy="200" r="168" fill="none" stroke-width="10" class="track"/>' +
+    '<path id="run-arc" fill="none" stroke-width="10" stroke-linecap="round" style="filter:drop-shadow(0 0 8px var(--halo))"/>' +
+    `<g id="run-hand" class="cel-run">${celestial(0, 0, true, 0.95, 'run-day')}${celestial(0, 0, false, 0.95, 'run-night')}</g>`;
+}
+function paintRunningDial() {
+  runDial.raf = 0;
+  const svg = runDial.svg;
+  if (!svg?.isConnected || !runDial.orb?.isConnected || !runDial.deadline || !runDial.total) return;
+  const remaining = Math.max(0, runDial.deadline - Date.now());
+  const progress = Math.max(0, Math.min(1, remaining / runDial.total));
+  const hot = remaining <= 60_000;
+  const final = remaining <= 10_000;
+  runDial.orb.classList.toggle('hot', hot && !final);
+  runDial.orb.classList.toggle('final', final);
+  const arcEl = svg.querySelector('#run-arc');
+  setA(arcEl, 'd', arc(200, 168, 0, progress));
+  setA(arcEl, 'stroke', `url(#${hot ? 'gHot' : 'gMoon'})`);
+  const hand = svg.querySelector('#run-hand');
+  const [x, y] = pt(200, 168, progress);
+  setA(hand, 'transform', `translate(${x.toFixed(2)} ${y.toFixed(2)})`);
+  setA(hand, 'display', progress > 0.002 ? 'inline' : 'none');
+  const day = isDay(new Date(runDial.deadline).getHours());
+  setA(hand?.querySelector('.run-day'), 'display', day ? 'inline' : 'none');
+  setA(hand?.querySelector('.run-night'), 'display', day ? 'none' : 'inline');
+  if (remaining > 0) runDial.raf = requestAnimationFrame(paintRunningDial);
+}
+function syncRunningDial(svg, orb, job) {
+  if (runDial.svg !== svg) {
+    if (runDial.raf) cancelAnimationFrame(runDial.raf);
+    morph(svg, runningDialSkeleton());
+    runDial.svg = svg;
+    runDial.raf = 0;
+  }
+  runDial.orb = orb;
+  runDial.deadline = job.deadline;
+  runDial.total = job.totalMs;
+  if (!runDial.raf) runDial.raf = requestAnimationFrame(paintRunningDial);
+}
+
 function updateRunning() {
   const j = snap?.job, svg = $('#orb-svg'); if (!j || !svg) return;
   const orb = $('#orb'), big = $('#big'), what = $('#what'), line = $('#status-line');
   const C = 200, R = 168, a = S.ACTIONS[j.action].label;
   if (j.phase === 'countdown') {
-    const f = j.totalMs ? Math.max(0, Math.min(1, j.remaining / j.totalMs)) : 0;
-    const hot = j.remaining <= 60000, fin = j.remaining <= 10000;
-    orb.classList.toggle('hot', hot && !fin); orb.classList.toggle('final', fin);
-    const [ex, ey] = pt(C, R, f);
-    morph(svg, DEFS + ticks(C, 188, 60, 5, 4) +
-      `<circle cx="${C}" cy="${C}" r="${R}" fill="none" stroke-width="10" class="track"/>` +
-      `<path d="${arc(C, R, 0, f)}" fill="none" stroke-width="10" stroke-linecap="round" stroke="url(#${hot ? 'gHot' : 'gMoon'})" style="filter:drop-shadow(0 0 12px var(--halo))"/>` +
-      (f > 0.002 ? celestial(ex, ey, isDay(new Date(j.deadline).getHours()), 0.95, 'cel-run') : ''));
+    syncRunningDial(svg, orb, j);
     if (big.dataset.mode !== 'c') { big.innerHTML = ''; big.dataset.t = ''; big.dataset.mode = 'c'; big.classList.remove('long'); }
     roll(big, S.clock(j.remaining));
-    morph(what, j.fromCondition ? `<b>${esc(a)}</b> · điều kiện đã thoả` : `<b>${esc(a)}</b> lúc ${S.hhmm(j.deadline)} ${S.dayWord(j.deadline)}`);
-    line.textContent = j.fromCondition ? 'Còn dùng máy thì chạm chuột hoặc bấm Huỷ' : `còn ${S.human(j.remaining)}`;
+    morph(what, j.fromCondition ? `<b>${esc(a)}</b> · điều kiện đã được đáp ứng` : `<b>${esc(a)}</b> lúc ${S.hhmm(j.deadline)} ${S.dayWord(j.deadline)}`);
+    line.textContent = `Còn ${S.human(j.remaining)}`;
   } else {
     orb.classList.remove('hot', 'final');
     const w = watchValue(j), p = Math.max(0, Math.min(1, w.p));
@@ -631,9 +658,38 @@ function updateRunning() {
     big.classList.toggle('long', w.main.length > 8);
     morph(what, `<b>${esc(a)}</b> ${esc(S.triggerText(j.trigger))}`);
     const t = j.trigger;
-    line.textContent = (t.type === 'net' || t.type === 'cpu') ? (j.satisfiedMs ? `Đã yên ${S.clock(j.satisfiedMs)} / ${S.clock(j.need)}, sau đó chờ thêm ${st.settings.graceSeconds} giây` : (t.type === 'net' ? 'Mạng vẫn đang chạy' : 'Máy vẫn đang bận'))
-      : t.type === 'process' ? 'Đang chờ app đóng lại' : t.type === 'battery' ? (snap.sensors.battery?.charging ? 'Đang cắm sạc nên tạm chờ' : 'Đang chạy bằng pin') : 'Bạn chạm chuột là đếm lại';
+    line.textContent = (t.type === 'net' || t.type === 'cpu') ? (j.satisfiedMs ? `Đã duy trì ${S.clock(j.satisfiedMs)} / ${S.clock(j.need)}; thời gian chờ bổ sung ${st.settings.graceSeconds} giây` : (t.type === 'net' ? 'Đang theo dõi lưu lượng mạng' : 'Đang theo dõi mức sử dụng CPU'))
+      : t.type === 'process' ? 'Đang chờ tiến trình kết thúc' : t.type === 'battery' ? (snap.sensors.battery?.charging ? 'Thiết bị đang kết nối nguồn' : 'Thiết bị đang sử dụng pin') : 'Bộ đếm đặt lại khi phát hiện thao tác';
   }
+}
+
+// ---------- Âm thanh nền ----------
+const FADES = [[0, 'Không'], [5, '5 phút'], [10, '10 phút'], [20, '20 phút'], [30, '30 phút']];
+function viewSounds() {
+  const A = Ambient, cfg = A.config, song = A.song();
+  const status = A.error ? `<span class="err">${esc(A.error)}</span>` : A.stoppedByTimer ? 'Đã tắt theo hẹn giờ'
+    : A.playing ? (A.fading ? `Đang nhỏ dần · ${Math.round(A.fadeLevel * 100)}%` : 'Đang phát')
+      : 'Âm thanh nền giúp dễ ngủ';
+  const tiles = A.SOUNDS.map((x, i) => {
+    const on = A.isOn(x.id), loading = A.playing && A.isLoading(x.id), v = Math.round(cfg.vols[x.id] * 100);
+    const sub = loading ? 'Đang chuẩn bị…' : x.id === 'lofi' && song && A.playing ? `${esc(song.title)} · ${esc(song.artist)}` : x.desc;
+    return `<div class="snd ${on ? 'on' : ''} ${loading ? 'loading' : ''}" data-key="snd-${x.id}" style="animation-delay:${i * 30}ms">
+      <button class="snd-tog" data-snd="${x.id}" aria-pressed="${on}" title="${on ? 'Tắt' : 'Bật'} ${x.name}"><span class="ring-i">${Icons[x.id]}</span></button>
+      <div class="snd-txt"><b>${x.name}</b><p>${sub}</p></div>
+      ${x.id === 'lofi' && on && A.playing ? `<button class="icon-btn" data-key="skip" data-do="snd-skip" title="Bài khác" ${loading ? 'disabled' : ''}>${Icons.skip}</button>` : '<span></span>'}
+      <input type="range" class="vol" data-vol="${x.id}" min="0" max="100" value="${v}" style="--v:${v}%" aria-label="Âm lượng ${x.name}">
+    </div>`;
+  }).join('');
+  const mv = Math.round(cfg.master * 100);
+  return `<section class="view sounds" data-key="v-sounds">
+    <div class="head"><div><div class="eyebrow">${status}</div><h1>Âm thanh</h1></div>
+      <div class="mixer"><span class="mx-ico">${Icons.volume}</span><input type="range" class="vol" data-master min="0" max="100" value="${mv}" style="--v:${mv}%" aria-label="Âm lượng chung">
+        <button class="btn ${A.playing ? '' : 'primary'}" data-key="snd-play" data-do="snd-play">${A.playing ? `${Icons.pause} Tạm dừng` : `${Icons.play} Phát`}</button></div></div>
+    <div class="snd-grid">${tiles}</div>
+    <div class="foot"><span class="label">Nhỏ dần trước khi hẹn giờ kết thúc</span>
+      <div class="seg" data-morph-keep="style">${FADES.map(([m, l]) => `<button class="${cfg.fade === m ? 'on' : ''}" data-fade="${m}">${l}</button>`).join('')}</div>
+      <p class="note">Âm thanh tắt hẳn khi hẹn giờ thực hiện hành động.</p></div>
+  </section>`;
 }
 
 // ---------- 02 Preset ----------
@@ -651,9 +707,9 @@ function viewPresets() {
       <button class="icon-btn" data-del-preset="${p.id}" title="Xoá">${Icons.trash}</button>
     </div>`).join('');
   return `<section class="view presets" data-key="v-presets">
-    <div class="head"><div><div class="eyebrow">Preset</div><h1>Những kiểu hẹn bạn hay dùng</h1></div></div>
-    <div class="list fit" data-fit="presets">${rows || '<div class="empty">Chưa có preset nào. Hẹn xong ở màn Hẹn giờ thì bấm “Lưu làm preset”.</div>'}</div>
-    <div class="foot"><p class="note">Nhấp đúp vào tên để đổi. Preset cũng nằm sẵn trong menu ở khay hệ thống.</p>${pager('presets', pg)}</div>
+    <div class="head"><div><div class="eyebrow">Preset</div><h1>Preset đã lưu</h1></div></div>
+    <div class="list fit" data-fit="presets">${rows || '<div class="empty">Chưa có preset. Tạo preset từ màn Hẹn giờ bằng nút "Lưu làm preset".</div>'}</div>
+    <div class="foot"><p class="note">Nhấp đúp vào tên để đổi tên. Preset cũng có thể được khởi chạy từ menu khay hệ thống.</p>${pager('presets', pg)}</div>
   </section>`;
 }
 
@@ -667,22 +723,22 @@ function viewSchedules() {
     return `<div class="item ${sc.enabled ? '' : 'off'}" data-row data-key="s-${sc.id}" style="animation-delay:${i * 40}ms">
       <span class="stime num">${sc.time}</span>
       <div class="sinfo"><div class="days">${days(sc.days, sc.id)}</div>
-        <div class="pdesc">${sc.enabled ? (next ? `Lần tới ${S.dayWord(next)} ${S.hhmm(next)}` : 'Chưa chọn ngày') : 'Đang tắt'}</div></div>
+        <div class="pdesc">${sc.enabled ? (next ? `Lần tiếp theo: ${S.dayWord(next)} ${S.hhmm(next)}` : 'Chưa chọn ngày') : 'Đã tắt'}</div></div>
       ${Dropdown.html({ opts: 'action', value: sc.action, key: `dd-s-${sc.id}`, attrs: `data-sact-row="${sc.id}"`, cls: 'dd-row', title: 'Hành động' })}
       <button class="switch ${sc.enabled ? 'on' : ''}" data-stoggle="${sc.id}" title="Bật/tắt"></button>
       <button class="icon-btn" data-sdel="${sc.id}" title="Xoá">${Icons.trash}</button>
     </div>`;
   }).join('');
   return `<section class="view sched" data-key="v-schedules">
-    <div class="head"><div><div class="eyebrow">Lịch lặp</div><h1>Tắt máy đều đặn mỗi tối</h1></div></div>
+    <div class="head"><div><div class="eyebrow">Lịch lặp</div><h1>Lịch tự động</h1></div></div>
     <div class="card adder">
       <div><div class="label">Giờ</div><div class="time-in"><input class="num" data-dial="sched.h" data-max="23" value="${pad(sched.h)}" maxlength="2"><span class="sep">:</span><input class="num" data-dial="sched.m" data-max="59" value="${pad(sched.m)}" maxlength="2"></div></div>
       <div><div class="label">Ngày</div><div class="days">${days(sched.days)}</div></div>
       <div><div class="label" id="lbl-sact">Hành động</div>${Dropdown.html({ opts: 'action', value: sched.action, key: 'dd-new', attrs: 'data-sact', labelledby: 'lbl-sact' })}</div>
       <button class="btn primary" data-do="sched-add" title="Thêm lịch">${Icons.plus}<span>Thêm lịch</span></button>
     </div>
-    <div class="list fit" data-fit="schedules">${rows || '<div class="empty">Chưa có lịch nào. Chọn giờ và ngày ở trên rồi bấm Thêm lịch.</div>'}</div>
-    <div class="foot"><p class="note">Lịch chỉ chạy khi Sleepy đang mở, kể cả lúc ẩn dưới khay. Bật “Mở cùng máy” trong Cài đặt cho chắc.</p>${pager('schedules', pg)}</div>
+    <div class="list fit" data-fit="schedules">${rows || '<div class="empty">Chưa có lịch. Chọn thời gian, ngày và hành động để tạo lịch mới.</div>'}</div>
+    <div class="foot"><p class="note">Sleepy phải đang chạy để thực hiện lịch. Bật "Khởi động cùng hệ thống" nếu cần.</p>${pager('schedules', pg)}</div>
   </section>`;
 }
 
@@ -698,11 +754,11 @@ function viewHistory() {
       <td>${badge[h.result] || ''}${h.note && h.note !== 'Đã huỷ' ? `<div class="sub">${esc(h.note)}</div>` : ''}</td></tr>`;
   }).join('');
   return `<section class="view" data-key="v-history">
-    <div class="head"><div><div class="eyebrow">Nhật ký</div><h1>Đã làm gì, lúc nào</h1></div>
+    <div class="head"><div><div class="eyebrow">Nhật ký</div><h1>Lịch sử hoạt động</h1></div>
       ${st.history.length ? '<button class="btn ghost small" data-do="hist-clear">Xoá nhật ký</button>' : ''}</div>
     <div class="fit" data-fit="history">${rows ? `<table class="hist"><colgroup><col class="c-time"><col><col class="c-src"><col class="c-res"></colgroup>
       <thead><tr><th>Thời gian</th><th>Hành động</th><th class="c-src">Nguồn</th><th>Kết quả</th></tr></thead><tbody>${rows}</tbody></table>`
-      : '<div class="empty">Chưa có lần hẹn nào. Hẹn xong sẽ thấy ở đây.</div>'}</div>
+      : '<div class="empty">Chưa có dữ liệu hoạt động.</div>'}</div>
     ${pg.count > 1 ? `<div class="foot">${pager('history', pg)}</div>` : ''}
   </section>`;
 }
@@ -718,25 +774,26 @@ function viewSettings() {
   const capWord = { yes: ['Được', 'yes'], challenge: ['Cần mật khẩu', ''], no: ['Không', 'no'], na: ['Không hỗ trợ', 'no'], unknown: ['Chưa rõ', ''] };
   const g = (k) => `card group${setTab === k ? ' cur' : ''}" data-g="${k}`;
   return `<section class="view settings" data-key="v-settings">
-    <div class="head"><div><div class="eyebrow">Cài đặt</div><h1>Tuỳ chỉnh Sleepy</h1></div>
+    <div class="head"><div><div class="eyebrow">Sleepy</div><h1>Cài đặt</h1></div>
       <div class="seg stabs" data-morph-keep="style">${[['warn', 'Cảnh báo'], ['app', 'Ứng dụng'], ['adv', 'Nâng cao']]
         .map(([k, l]) => `<button class="${setTab === k ? 'on' : ''}" data-stab="${k}">${l}</button>`).join('')}</div></div>
     <div class="groups">
     <div class="${g('warn')}"><h2>Cảnh báo</h2>
-      ${setRow('Báo trước', 'Một cửa sổ nhỏ hiện ở góc màn hình để bạn kịp hoãn hoặc huỷ.', seg('warnMinutes', [[0, 'Không'], [1, '1 phút'], [2, '2 phút'], [5, '5 phút'], [10, '10 phút']]))}
-      ${setRow('Chờ thêm sau khi xong việc', 'Với kiểu hẹn “Khi xong việc”, Sleepy chờ thêm một chút rồi mới làm.', seg('graceSeconds', [[30, '30 giây'], [60, '60 giây'], [120, '2 phút']]))}
-      ${setRow('Âm báo', 'Chuông nhẹ lúc báo trước và trong 10 giây cuối.', sw('sound'))}
-      ${setRow('Chế độ thử', 'Đến giờ chỉ hiện thông báo, máy không tắt thật. Hợp để thử lịch.', sw('dryRun'))}
+      ${setRow('Báo trước', 'Hiển thị cửa sổ cảnh báo trước khi thực hiện hành động.', seg('warnMinutes', [[0, 'Không'], [1, '1 phút'], [2, '2 phút'], [5, '5 phút'], [10, '10 phút']]))}
+      ${setRow('Thời gian chờ sau điều kiện', 'Khoảng trì hoãn sau khi điều kiện được đáp ứng.', seg('graceSeconds', [[30, '30 giây'], [60, '60 giây'], [120, '2 phút']]))}
+      ${setRow('Âm báo', 'Phát âm thanh khi cảnh báo và trong 10 giây cuối.', sw('sound'))}
+      ${setRow('Chế độ thử', 'Chỉ hiển thị thông báo, không thực hiện hành động hệ thống.', sw('dryRun'))}
     </div>
     <div class="${g('app')}"><h2>Ứng dụng</h2>
-      ${setRow('Giao diện', 'Đêm có bầu trời sao; Sáng phẳng và gọn cho ban ngày.', seg('theme', [['dark', 'Đêm'], ['light', 'Sáng'], ['system', 'Theo hệ thống']]))}
-      ${setRow('Đóng cửa sổ thì ẩn xuống khay', 'Hẹn giờ vẫn chạy. Muốn thoát hẳn thì mở menu ở khay.', sw('closeToTray'))}
-      ${setRow('Mở cùng máy', 'Tự mở khi bạn đăng nhập để lịch luôn chạy.', sw('autostart'))}
-      ${setRow('Mở lên là ẩn luôn', 'Không hiện cửa sổ, chỉ nằm dưới khay.', sw('startMinimized'))}
+      ${setRow('Giao diện', 'Chọn giao diện hiển thị.', seg('theme', [['dark', 'Tối'], ['light', 'Sáng'], ['system', 'Theo hệ thống']]))}
+      ${setRow('Giữ hệ thống hoạt động', 'Ngăn màn hình tắt và hệ thống tự chuyển sang chế độ ngủ khi hẹn giờ đang chạy.', sw('keepAwake'))}
+      ${setRow('Thu nhỏ vào khay khi đóng', 'Tiếp tục chạy hẹn giờ khi cửa sổ chính đóng.', sw('closeToTray'))}
+      ${setRow('Khởi động cùng hệ thống', 'Khởi động Sleepy sau khi đăng nhập.', sw('autostart'))}
+      ${setRow('Khởi động ở chế độ thu nhỏ', 'Mở ứng dụng ở trạng thái thu nhỏ vào khay.', sw('startMinimized'))}
     </div>
     <div class="${g('adv')}"><h2>Nâng cao</h2>
-      ${setRow('Lệnh chạy trước', 'Chạy lệnh này ngay trước khi làm, tối đa 30 giây. Ví dụ <span style="font-family:var(--mono)">playerctl pause</span> để dừng nhạc.', `<input class="mono" data-text="preCommand" value="${esc(st.settings.preCommand)}" placeholder="(để trống)" spellcheck="false">`)}
-      <div class="set" style="display:block"><b>Ubuntu có cho phép không</b>
+      ${setRow('Lệnh chạy trước', 'Thực thi lệnh trước hành động, với thời gian chờ tối đa 30 giây. Ví dụ: <span style="font-family:var(--mono)">playerctl pause</span>.', `<input class="mono" data-text="preCommand" value="${esc(st.settings.preCommand)}" placeholder="Để trống nếu không sử dụng" spellcheck="false">`)}
+      <div class="set" style="display:block"><b>Quyền thực hiện hành động</b>
         <div class="caps" style="margin-top:10px">${ORDER.map((k) => { const c = capWord[st.caps?.[k]] || capWord.unknown; return `<div><span>${S.ACTIONS[k].label}</span><span class="${c[1]}">${c[0]}</span></div>`; }).join('')}</div></div>
     </div>
     </div>
@@ -747,25 +804,33 @@ function viewSettings() {
 // ---------- Sự kiện ----------
 async function start(action, trig, source) {
   const r = await sleepy.start(action, trig, source);
-  if (!r.ok) toast(r.error, true); else toast(`Đã hẹn: ${S.describe(action, trig)}`);
+  if (!r.ok || r.error) toast(r.error, true); else toast(`Đã tạo hẹn giờ: ${S.describe(action, trig)}.`);
 }
 document.addEventListener('click', async (e) => {
   const t = e.target.closest('button, [data-rename], .mini');
   if (!t) return;
   const ds = t.dataset;
   if (ds.win) return sleepy.win(ds.win);
-  if (ds.view) { view = ds.view; savingPreset = false; renaming = null; if (view === 'timer' && draft.type === 'process') loadProcs(); return render(); }
-  if (ds.action) { draft.action = ds.action; saveDraft(); return render(); }
-  if (ds.mode) { draft.type = ds.mode === 'cond' ? (draft.condType || 'idle') : ds.mode; saveDraft(); if (draft.type === 'process') loadProcs(); return render(); }
-  if (ds.type) { draft.type = ds.type; draft.condType = ds.type; saveDraft(); if (ds.type === 'process') loadProcs(); return render(); }
-  if (ds.chip) { const v = +ds.chip; draft.countdown = { h: Math.floor(v / 60), m: v % 60, s: 0 }; saveDraft(); return render(); }
-  if (ds.chipAt) { const [h, m] = ds.chipAt.split(':').map(Number); draft.at = { h, m }; saveDraft(); return render(); }
+  if (ds.view) { if (view === ds.view) return; view = ds.view; savingPreset = false; renaming = null; if (view === 'timer' && draft.type === 'process') loadProcs(); return render(); }
+  if (ds.action) { if (draft.action === ds.action) return; draft.action = ds.action; saveDraft(); return render(); }
+  if (ds.mode) { const type = ds.mode === 'cond' ? (draft.condType || 'idle') : ds.mode; if (draft.type === type) return; draft.type = type; saveDraft(); if (draft.type === 'process') loadProcs(); return render(); }
+  if (ds.type) { if (draft.type === ds.type) return; draft.type = ds.type; draft.condType = ds.type; saveDraft(); if (ds.type === 'process') loadProcs(); return render(); }
+  if (ds.chip) { const v = +ds.chip; if (dialVal() === v && !draft.countdown.s) return; draft.countdown = { h: Math.floor(v / 60), m: v % 60, s: 0 }; saveDraft(); return render(); }
+  if (ds.chipAt) { const current = `${pad(draft.at.h)}:${pad(draft.at.m)}`; if (current === ds.chipAt) return; const [h, m] = ds.chipAt.split(':').map(Number); draft.at = { h, m }; saveDraft(); return render(); }
   if (ds.post) return sleepy.postpone(+ds.post);
+  if (ds.snd) return Ambient.toggle(ds.snd);
+  if (ds.fade) return Ambient.setFade(+ds.fade);
   if (ds.stab) { setTab = ds.stab; return render(); }
   if (ds.page) { const [k, d] = ds.page.split(':'); pages[k].page += +d; return render(); }
   if (ds.run) { const p = st.presets.find((x) => x.id === ds.run); if (p) { await start(p.action, p.trigger, `preset:${p.id}`); view = 'timer'; render(); } return; }
   if (ds.delPreset) return sleepy.setPresets(st.presets.filter((p) => p.id !== ds.delPreset));
-  if (ds.set) return sleepy.setSettings({ [ds.set]: JSON.parse(ds.val) });
+  if (ds.set) {
+    try {
+      return await sleepy.setSettings({ [ds.set]: JSON.parse(ds.val) });
+    } catch (error) {
+      return toast(String(error), true);
+    }
+  }
   if (ds.nday) { const d = +ds.nday; sched.days = sched.days.includes(d) ? sched.days.filter((x) => x !== d) : [...sched.days, d]; return render(); }
   if (ds.sday) {
     const [id, d] = ds.sday.split(':');
@@ -775,14 +840,16 @@ document.addEventListener('click', async (e) => {
   if (ds.sdel) return sleepy.setSchedules(st.schedules.filter((s) => s.id !== ds.sdel));
   switch (ds.do) {
     case 'start': return start(draft.action, trigger(), 'manual');
-    case 'cancel': await sleepy.cancel(); return toast('Đã huỷ, máy cứ chạy tiếp');
+    case 'cancel': await sleepy.cancel(); return toast('Đã huỷ hẹn giờ.');
     case 'now': return sleepy.now();
     case 'preset-new': savingPreset = true; return render();
     case 'preset-cancel': savingPreset = false; return render();
     case 'preset-save': return savePreset();
     case 'hist-clear': return sleepy.clearHistory();
+    case 'snd-play': return Ambient.togglePlay();
+    case 'snd-skip': return Ambient.skipSong();
     case 'sched-add': {
-      if (!sched.days.length) return toast('Chọn ít nhất một ngày nhé', true);
+      if (!sched.days.length) return toast('Vui lòng chọn ít nhất một ngày.', true);
       const id = Math.random().toString(16).slice(2, 12);
       await sleepy.setSchedules([...st.schedules, { id, time: `${pad(sched.h)}:${pad(sched.m)}`, days: [...sched.days].sort(), action: sched.action, enabled: true, lastArmed: 0 }]);
       return toast(`Đã thêm lịch ${pad(sched.h)}:${pad(sched.m)}`);
@@ -797,12 +864,12 @@ function commitRename(input) {
 }
 async function savePreset() {
   const name = $('#preset-name')?.value.trim();
-  if (!name) return toast('Bạn đặt tên cho preset nhé', true);
+  if (!name) return toast('Vui lòng nhập tên preset.', true);
   const t = trigger();
-  if (t.type === 'countdown' && !t.seconds) return toast('Chọn thời gian lớn hơn 0 nhé', true);
+  if (t.type === 'countdown' && !t.seconds) return toast('Thời gian phải lớn hơn 0.', true);
   savingPreset = false;
   await sleepy.setPresets([...st.presets, { id: Math.random().toString(16).slice(2, 12), name, action: draft.action, trigger: t }]);
-  toast(`Đã lưu preset “${name}”`);
+  toast(`Đã lưu preset "${name}".`);
 }
 function setDial(input, val) {
   const [scope, key] = input.dataset.dial.split('.');
@@ -814,6 +881,11 @@ const fmtDial = (input, v) => (input.dataset.dial === 'countdown.h' ? String(v) 
 function dialChanged(opts) { if (view === 'timer') { renderDial(opts); updateSummary(); syncChips(); } }
 document.addEventListener('input', (e) => {
   const t = e.target;
+  if (t.dataset.vol || 'master' in t.dataset) {
+    t.style.setProperty('--v', `${t.value}%`);
+    if (t.dataset.vol) Ambient.setVol(t.dataset.vol, t.value / 100); else Ambient.setMaster(t.value / 100);
+    return;
+  }
   if (t.dataset.dial) { t.value = t.value.replace(/\D/g, '').slice(0, 2); setDial(t, parseInt(t.value, 10)); dialChanged(); }
   else if (t.dataset.field) {
     const [scope, key] = t.dataset.field.split('.');
@@ -850,7 +922,7 @@ document.addEventListener('keydown', (e) => {
   if (t.dataset?.dial && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); stepDial(t, e.key === 'ArrowUp' ? 1 : -1); return; }
   if (t.dataset?.renameInput) { if (e.key === 'Enter') t.blur(); if (e.key === 'Escape') { renaming = null; render(); } return; }
   if (t.id === 'preset-name') { if (e.key === 'Enter') savePreset(); if (e.key === 'Escape') { savingPreset = false; render(); } return; }
-  if (e.ctrlKey && /^[1-5]$/.test(e.key)) { view = VIEWS[+e.key - 1][0]; savingPreset = false; render(); return; }
+  if (e.ctrlKey && /^[1-6]$/.test(e.key)) { view = VIEWS[+e.key - 1][0]; savingPreset = false; render(); return; }
   if (e.key === 'Enter' && view === 'timer' && !snap?.job && t.tagName !== 'BUTTON') start(draft.action, trigger(), 'manual');
 });
 
@@ -872,10 +944,13 @@ function checkProc() {
   draft = initDraft(st.draft);
   render();
   if (draft.type === 'process') loadProcs();
+  Ambient.syncJob(snap.job);
+  Ambient.onChange(() => { if (!st) return; if (view === 'sounds') render(); else renderRail(); syncIndicators(); });
 
   sleepy.onState((s) => {
     const hadJob = !!snap?.job;
     st = s; snap = { job: s.job, sensors: s.sensors, next: s.next };
+    Ambient.syncJob(s.job);
     if (!hadJob && s.job) view = 'timer';
     render(); // rẻ nhờ morph; ô đang gõ (vd. Lệnh chạy trước) giữ nguyên giá trị
 
@@ -885,6 +960,9 @@ function checkProc() {
   sleepy.onTick((s) => {
     const changed = !!snap?.job !== !!s.job || snap?.job?.phase !== s.job?.phase || snap?.job?.id !== s.job?.id;
     snap = s;
+    const wasFading = Ambient.fading;
+    Ambient.syncJob(s.job);
+    if (view === 'sounds' && (wasFading || Ambient.fading)) render();
     if (s.sensors.cpu != null) { spark.cpu.push(s.sensors.cpu); if (spark.cpu.length > 60) spark.cpu.shift(); }
     if (s.sensors.net != null) { spark.net.push(s.sensors.net); if (spark.net.length > 60) spark.net.shift(); }
     if (changed && view === 'timer') return render();

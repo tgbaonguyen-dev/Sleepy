@@ -3,6 +3,7 @@
 pub mod domain;
 pub mod sensors;
 pub mod store;
+pub mod system;
 
 pub fn run() {
     tauri::Builder::default()

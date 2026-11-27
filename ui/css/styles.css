@@ -31,6 +31,7 @@
   --rail-w: 164px;
   --pad-x: clamp(16px, 3vw, 44px);
   --pad-y: clamp(10px, 2.2vh, 26px);
+  --content-max: 1240px; /* cửa sổ rất rộng (thu nhỏ): nội dung dồn vào giữa thay vì kéo dãn hết bề ngang */
   color-scheme: dark;
 }
 :root[data-theme='light'] {
@@ -123,6 +124,7 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
 
 .main { overflow: hidden; position: relative; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .view { padding: var(--pad-y) var(--pad-x); flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.view:not(.running) > * { align-self: center; width: 100%; max-width: var(--content-max); }
 @keyframes in { from { opacity: 0; transform: translateY(6px); } }
 .head { flex: none; display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: clamp(10px, 2.6vh, 26px); }
 .eyebrow { font-size: 12px; color: var(--ink-3); }
@@ -149,7 +151,7 @@ h1 { font-size: clamp(18px, 1.2vw + 1.3vh + 3px, 25px); font-weight: 600; letter
 .seg button { padding: 7px 14px; border-radius: 999px; color: var(--ink-2); font-size: 13px; transition: all .2s; }
 .seg button:hover { color: var(--ink); }
 .seg button.on { background: var(--surface-3); color: var(--ink); font-weight: 600; box-shadow: 0 1px 0 var(--line-2) inset; }
-.seg.wide { display: flex; } .seg.wide button { flex: 1; }
+.seg.wide { display: flex; } .seg.wide button { flex: 1; padding-inline: 6px; }
 
 .toast { position: fixed; left: 50%; bottom: 96px; transform: translate(-50%, 10px); opacity: 0; background: var(--surface-3); backdrop-filter: blur(16px); border: 1px solid var(--line-2); color: var(--ink); padding: 10px 18px; border-radius: 999px; font-size: 13.5px; transition: .25s var(--ease); pointer-events: none; z-index: 9; box-shadow: var(--shadow); }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
@@ -158,12 +160,12 @@ h1 { font-size: clamp(18px, 1.2vw + 1.3vh + 3px, 25px); font-weight: 600; letter
 /* ---------- Hẹn giờ: thiết lập ---------- */
 .setup { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) clamp(250px, 24vw + 90px, 400px); grid-template-rows: minmax(0, 1fr); gap: 22px; }
 /* Vòng quay lấp vừa khoảng trống của cột trái (container query theo cả rộng lẫn cao) */
-.stage { container: stage / size; padding: 22px 18px 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: clamp(8px, 2vh, 18px); min-height: 0; }
-.dial { position: relative; flex: none; width: min(100cqw, 100cqh - 48px, 480px); aspect-ratio: 1; touch-action: none; container-type: inline-size; }
+.stage { container: stage / size; padding: 22px 18px 18px; display: flex; flex-direction: column; align-items: center; justify-content: safe center; gap: clamp(8px, 2vh, 18px); min-height: 0; }
+.dial { position: relative; flex: none; width: min(100cqw, 100cqh - 56px, 540px); aspect-ratio: 1; touch-action: none; container-type: inline-size; }
 .stage .chips { flex: none; justify-content: center; height: 32px; overflow: clip; overflow-clip-margin: 6px; row-gap: 12px; }
 .stage > svg { max-width: 100%; flex: none; }
-.stage:has(#spark) .dial { width: min(100cqw, 100cqh - 66px, 480px); }
-.dial svg { width: 100%; height: 100%; overflow: visible; }
+.stage:has(#spark) .dial { width: min(100cqw, 100cqh - 70px, 540px); }
+.dial svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .dial .center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; pointer-events: none; }
 .dial .center > * { pointer-events: auto; }
 .dial .cap { font-size: clamp(11px, 3.6cqw, 13px); color: var(--ink-3); }
@@ -186,7 +188,7 @@ h1 { font-size: clamp(18px, 1.2vw + 1.3vh + 3px, 25px); font-weight: 600; letter
 .time-in .sep { font-size: 54px; font-weight: 200; color: var(--ink-3); }
 .time-in .unit { font-size: 13px; color: var(--ink-3); margin: 0 6px 0 2px; }
 
-.side { display: flex; flex-direction: column; justify-content: center; gap: 18px; min-height: 0; }
+.side { display: flex; flex-direction: column; justify-content: safe center; gap: 18px; min-height: 0; }
 .side > * { flex: none; }
 .acts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .act { border-radius: 16px; padding: 12px 6px 10px; display: flex; flex-direction: column; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--line); color: var(--ink-2); font-size: 12.5px; transition: all .2s var(--ease); }
@@ -205,17 +207,17 @@ h1 { font-size: clamp(18px, 1.2vw + 1.3vh + 3px, 25px); font-weight: 600; letter
 .note { color: var(--ink-3); font-size: 12.5px; line-height: 1.5; }
 .note.warn { color: var(--lamp); }
 
-.bar { flex: none; padding: 0 var(--pad-x) clamp(12px, 2.4vh, 22px); display: flex; align-items: center; gap: 10px; }
+.bar { flex: none; align-self: center; width: 100%; max-width: calc(var(--content-max) + 2 * var(--pad-x)); padding: 0 var(--pad-x) clamp(12px, 2.4vh, 22px); display: flex; align-items: center; gap: 10px; }
 .summary { flex: 1; min-width: 0; font-size: 14px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .summary b { color: var(--ink); font-weight: 600; }
 .inline-input { border: 1px solid var(--line-2); background: var(--surface); padding: 9px 14px; width: 200px; border-radius: 999px; }
 .inline-input:focus { outline: none; border-color: var(--moon); }
 
 /* ---------- Đang chạy ---------- */
-.running { container: run / size; align-items: center; justify-content: center; }
+.running { container: run / size; align-items: center; justify-content: safe center; }
 .running > * { flex: none; }
-.orb { position: relative; width: min(100cqw, 100cqh - 150px, 500px); aspect-ratio: 1; container-type: inline-size; }
-.running:has(.dry) .orb { width: min(100cqw, 100cqh - 196px, 500px); }
+.orb { position: relative; width: min(100cqw, 100cqh - 150px, 560px); aspect-ratio: 1; container-type: inline-size; }
+.running:has(.dry) .orb { width: min(100cqw, 100cqh - 196px, 560px); }
 .orb::before { content: ''; position: absolute; inset: 15%; border-radius: 50%; background: radial-gradient(circle, var(--halo), transparent 70%); animation: breathe 5s ease-in-out infinite; }
 @keyframes breathe { 50% { transform: scale(1.12); opacity: .6; } }
 .orb > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
@@ -586,3 +588,60 @@ body { font-size: 13.5px; }
 .toast { font-size: 13px; }
 .dry { font-size: 12px; }
 .status-line { font-size: 12.5px; }
+
+/* ---------- Cửa sổ thấp: 900×640 (tối thiểu), hoặc 1060×760 phóng to 125% (≈ 848×608) ----------
+   Bỏ dòng hướng dẫn phụ, thu nhỏ vòng hành động và các khoảng cách; "Hay dùng" tự còn ít dòng hơn. */
+@media (max-height: 700px) {
+  :root { --title-h: 36px; --ring: 38px; }
+  .head { margin-bottom: 8px; }
+  .side { gap: 12px; }
+  .label { margin-bottom: 6px; }
+  .acts { gap: 8px 6px; }
+  .act { gap: 5px; font-size: 11.5px; }
+  .side > .note, .cond .note { display: none; }
+  .cond { gap: 8px; }
+  .cond .chips { gap: 6px; }
+  .cond .chip { padding: 4px 10px; font-size: 12px; }
+  .sentence, .sentence input { font-size: 14px; }
+  .sentence { line-height: 1.85; }
+  .bar { padding-bottom: 12px; }
+  .btn.big { padding: 9px 18px; font-size: 13.5px; }
+  .item { padding: 8px 4px; }
+}
+/* ---------- Rất thấp: phóng to 150% trở lên (≈ 707×507, 640×480) ----------
+   Ẩn dòng chào, hành động thành hai cột nút ngang gọn. */
+@media (max-height: 560px) {
+  :root { --ring: 26px; --title-h: 34px; }
+  .view { padding-top: 8px; }
+  .label { margin-bottom: 4px; }
+  .sentence { line-height: 1.7; }
+  .head .eyebrow { display: none; }
+  h1 { font-size: 17px; }
+  .acts { grid-template-columns: 1fr 1fr; gap: 4px 8px; }
+  .act { flex-direction: row; justify-content: flex-start; height: 28px; gap: 8px; padding: 0 2px; }
+  .act svg { width: 15px; height: 15px; }
+  .act.on .ring-i, [data-theme='light'] .act.on .ring-i { box-shadow: 0 0 0 3px color-mix(in srgb, var(--moon) 16%, transparent); }
+  .side { gap: 10px; }
+}
+/* ---------- Hẹp: cột điều khiển giữ đủ rộng, vòng quay nhường chỗ ---------- */
+@media (max-width: 760px) {
+  .setup { grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; }
+  .seg button { padding: 6px 8px; }
+}
+.quick-w.none { visibility: hidden; }
+
+/* Thêm lịch: gọn lại khi hẹp để nút Thêm lịch vẫn nằm cùng hàng */
+.adder { gap: 14px 22px; }
+@media (max-width: 900px) {
+  .adder { gap: 12px 16px; }
+  .adder .time-in input { font-size: 28px; }
+  .adder .time-in .sep { font-size: 24px; }
+  .adder .select { min-width: 0; }
+  .day { width: 26px; }
+}
+@media (max-width: 760px) {
+  .adder .btn { padding: 10px; }
+  .adder .btn span { display: none; }
+  .adder .days { gap: 3px; }
+  .day { width: 24px; }
+}

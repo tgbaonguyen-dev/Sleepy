@@ -180,6 +180,8 @@ function draw() {
   const html = () => ({ timer: () => (snap?.job ? viewRunning() : viewSetup()), presets: viewPresets, schedules: viewSchedules, history: viewHistory, settings: viewSettings }[view]());
   morph(main, html());
   for (let i = 0; i < 3 && fitPages(); i++) morph(main, html());
+  // "Hay dùng" co theo chỗ trống (CSS cắt bớt dòng); không còn dòng nào vừa thì ẩn luôn cả nhãn
+  const q = $('.quick'); if (q) q.parentElement.classList.toggle('none', q.clientHeight < q.firstElementChild.offsetHeight);
   if (view === 'timer' && !snap?.job) { renderDial(); bindDial(); }
   if (view === 'timer' && snap?.job) updateRunning();
   const r = $('[data-rename-input]'); if (r && document.activeElement !== r) { r.focus(); r.select(); }
@@ -510,7 +512,7 @@ function viewSchedules() {
       <div><div class="label">Giờ</div><div class="time-in"><input class="num" data-dial="sched.h" data-max="23" value="${pad(sched.h)}" maxlength="2"><span class="sep">:</span><input class="num" data-dial="sched.m" data-max="59" value="${pad(sched.m)}" maxlength="2"></div></div>
       <div><div class="label">Ngày</div><div class="days">${days(sched.days)}</div></div>
       <div><div class="label">Hành động</div><select class="select" data-sact>${ORDER.map((k) => `<option value="${k}" ${sched.action === k ? 'selected' : ''}>${S.ACTIONS[k].label}</option>`).join('')}</select></div>
-      <button class="btn primary" data-do="sched-add">${Icons.plus} Thêm lịch</button>
+      <button class="btn primary" data-do="sched-add" title="Thêm lịch">${Icons.plus}<span>Thêm lịch</span></button>
     </div>
     <div class="list fit" data-fit="schedules">${rows || '<div class="empty">Chưa có lịch nào. Chọn giờ và ngày ở trên rồi bấm Thêm lịch.</div>'}</div>
     <div class="foot"><p class="note">Lịch chỉ chạy khi Sleepy đang mở, kể cả lúc ẩn dưới khay. Bật “Mở cùng máy” trong Cài đặt cho chắc.</p>${pager('schedules', pg)}</div>

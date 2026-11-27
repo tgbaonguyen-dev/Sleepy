@@ -2,6 +2,7 @@
 
 mod autostart;
 mod dispatch;
+mod runtime;
 mod state;
 mod tray;
 mod windows;

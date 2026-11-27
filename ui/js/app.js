@@ -6,7 +6,7 @@ const pad = S.pad;
 const TAU = Math.PI * 2;
 
 let st = null, snap = null, view = 'timer', draft = null;
-let procList = [], procRunning = null, savingPreset = false, renaming = null;
+let procList = [], procRunning = null, savingPreset = false, renaming = null, histFilter = 'all';
 const spark = { cpu: [], net: [] };
 // Danh sách dài (preset, lịch lặp, nhật ký) không bao giờ cuộn: mỗi trang chỉ chứa số dòng vừa khung,
 // số đó được đo lại sau mỗi lần vẽ / đổi cỡ cửa sổ (xem fitPages).
@@ -19,6 +19,15 @@ const ORDER = ['shutdown', 'reboot', 'suspend', 'hibernate', 'lock', 'logout'];
 const CONDS = [['idle', 'Không hoạt động'], ['net', 'Lưu lượng mạng'], ['cpu', 'Mức sử dụng CPU'], ['process', 'Ứng dụng kết thúc'], ['battery', 'Mức pin']];
 const isCond = (t) => !['countdown', 'at'].includes(t);
 Dropdown.define('action', ORDER.map((k) => ({ value: k, label: S.ACTIONS[k].label, icon: Icons[k] })));
+Dropdown.define('sfilter', [
+  { value: 'all', label: 'Tất cả danh mục', icon: Icons.sound },
+  { value: 'active', label: 'Đang phát', icon: Icons.play },
+  { value: 'rain', label: 'Mưa', icon: Icons.rain },
+  { value: 'nature', label: 'Thiên nhiên', icon: Icons.wind },
+  { value: 'animals', label: 'Đêm', icon: Icons.crickets },
+  { value: 'noise', label: 'Ồn & Não', icon: Icons.brown },
+  { value: 'places', label: 'Không gian', icon: Icons.lofi },
+]);
 
 // ---------- Hình học vòng tròn ----------
 const pt = (c, r, f) => [c + r * Math.sin(f * TAU), c - r * Math.cos(f * TAU)];
@@ -155,6 +164,59 @@ function openConfirm(trigger, { title, confirmLabel, danger = true, onConfirm })
       const idx = btns.indexOf(document.activeElement);
       e.preventDefault();
       btns[(idx + (e.shiftKey ? -1 : 1) + btns.length) % btns.length].focus();
+    }
+  });
+}
+function openPresetMenu(trigger, p) {
+  closeConfirm(false);
+  const pop = document.createElement('div');
+  pop.className = 'cpop pmenu';
+  pop.setAttribute('role', 'menu');
+  pop.innerHTML = `
+    <button role="menuitem" data-pm="rename">Đổi tên</button>
+    <button role="menuitem" data-pm="edit">Sửa trong Hẹn giờ</button>
+    <button role="menuitem" data-pm="dup">Nhân bản</button>
+    <button role="menuitem" class="danger" data-pm="del">Xoá preset</button>`;
+  document.body.appendChild(pop);
+  const r = trigger.getBoundingClientRect();
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  const up = window.innerHeight - r.bottom < ph + 12 && r.top > ph + 12;
+  pop.style.left = `${Math.round(Math.max(8, Math.min(r.right - pw, window.innerWidth - pw - 8)))}px`;
+  pop.style.top = `${Math.round(up ? r.top - ph - 6 : r.bottom + 6)}px`;
+  confirmPop = { el: pop, trigger };
+  pop.querySelector('button').focus({ preventScroll: true });
+  pop.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-pm]');
+    if (!b) return;
+    const act = b.dataset.pm;
+    closeConfirm(false);
+    if (act === 'rename') { renaming = p.id; render(); }
+    else if (act === 'edit') {
+      draft = initDraft({ action: p.action, trigger: p.trigger });
+      saveDraft();
+      view = 'timer';
+      render();
+      toast(`Đã nạp "${p.name}" vào Hẹn giờ.`);
+    } else if (act === 'dup') {
+      const copy = { ...p, id: Math.random().toString(16).slice(2, 12), name: `${p.name} (bản sao)` };
+      await sleepy.setPresets([...st.presets, copy]);
+      toast(`Đã nhân bản "${p.name}".`);
+    } else if (act === 'del') {
+      const prev = [...st.presets];
+      await sleepy.setPresets(prev.filter((x) => x.id !== p.id));
+      toast(`Đã xoá preset "${p.name}".`, {
+        action: 'Hoàn tác',
+        undo: () => sleepy.setPresets(prev).then(() => toast(`Đã khôi phục "${p.name}".`)),
+      });
+    }
+  });
+  pop.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); closeConfirm(true); }
+    else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      const btns = [...pop.querySelectorAll('button')];
+      const i = btns.indexOf(document.activeElement);
+      e.preventDefault();
+      btns[(i + (e.key === 'ArrowDown' ? 1 : -1) + btns.length) % btns.length].focus();
     }
   });
 }
@@ -360,15 +422,14 @@ function viewSetup() {
     <div class="head"><h1>Hẹn giờ</h1><span class="page-meta num" id="greet">${greet()}</span></div>
     <div class="setup">
       <div class="stage">
-        <div class="dial ${isCond(d.type) ? '' : 'drag'}" id="dial" ${dialAttrs()}><svg viewBox="0 0 330 330" id="dial-svg" data-own></svg><div class="center" id="dial-center" data-own></div></div>
+        <div class="dial ${isCond(d.type) ? '' : 'drag'}" id="dial" ${dialAttrs()} title="${mode === 'countdown' ? 'Kéo vòng, cuộn chuột hoặc dùng phím mũi tên (giữ Shift để bước 5 phút)' : mode === 'at' ? 'Kéo vòng để chọn giờ thực hiện (giờ đã qua áp dụng cho ngày mai)' : ''}"><svg viewBox="0 0 330 330" id="dial-svg" data-own></svg><div class="center" id="dial-center" data-own></div></div>
         ${chips ? `<div class="chips clip-fit">${chips}</div>` : `<svg id="spark" viewBox="0 0 280 48" style="width:280px;height:48px;overflow:visible" data-own></svg>`}
       </div>
       <div class="side">
         <div id="side-actions"><div class="label">Hành động</div><div class="acts">${acts}</div></div>
         <div id="side-mode"><div class="label">Thời điểm</div>
           <div class="seg wide" data-morph-keep="style"><button class="${mode === 'countdown' ? 'on' : ''}" data-mode="countdown">Thời lượng</button><button class="${mode === 'at' ? 'on' : ''}" data-mode="at">Giờ cụ thể</button><button class="${mode === 'cond' ? 'on' : ''}" data-mode="cond">Điều kiện</button></div></div>
-        <div id="side-detail">${mode === 'cond' ? condCard() : `<p class="note">${mode === 'countdown' ? 'Kéo vòng để đặt thời lượng. Dùng con lăn hoặc phím mũi tên để điều chỉnh; giữ Shift để thay đổi theo bước 5 phút.' : 'Kéo vòng để chọn giờ thực hiện. Giờ đã qua sẽ được áp dụng cho ngày hôm sau.'}</p>`}</div>
-        ${mode === 'cond' ? '' : quickSoundsHtml()}
+        <div id="side-detail">${mode === 'cond' ? condCard() : quickSoundsHtml()}</div>
       </div>
     </div>
   </section>
@@ -824,11 +885,11 @@ function quickSoundsHtml() {
     return `<button class="chip ${on ? 'on' : ''}" data-apreset="${p.id}">${esc(p.name)}</button>`;
   }).join('');
   return `<div id="side-sounds" class="quick-snd">
-    <div class="label">Âm thanh đi ngủ</div>
+    <div class="label">Âm thanh khi ngủ</div>
     <div class="chips">
       <button class="chip ${A.playing ? 'on' : ''}" data-do="snd-play">${A.playing ? 'Tạm dừng' : 'Phát nhạc'}</button>
       ${presets}
-      <button class="chip" data-view="sounds">Tất cả</button>
+      <button class="chip" data-view="sounds">Mở trang Âm thanh ↗</button>
     </div>
   </div>`;
 }
@@ -845,10 +906,10 @@ function soundsPaneHtml(A, song) {
   const pg = paginateSlice(list, sndPage, sndPerPage());
   sndPage = pg.page;
 
-  const filtersHtml = SND_FILTERS.map(([id, label]) => {
-    const text = id === 'active' && activeCount ? `${label} (${activeCount})` : label;
-    return `<button class="sub-tab ${sndFilter === id ? 'on' : ''}" data-sfilter="${id}">${text}</button>`;
-  }).join('');
+  const filterBar = `<div class="snd-subbar pl-actions">
+    ${Dropdown.html({ opts: 'sfilter', value: sndFilter, key: 'dd-sfilter', attrs: 'data-sfilter-dd', cls: 'dd-compact', title: 'Lọc theo danh mục âm thanh' })}
+    <button class="sub-tab ${sndFilter === 'active' ? 'on' : ''}" data-sfilter="${sndFilter === 'active' ? 'all' : 'active'}">Đang phát${activeCount ? ` (${activeCount})` : ''}</button>
+  </div>`;
 
   const rows = pg.rows.map((x) => {
     const on = x.active, lit = on && A.playing, loading = A.playing && x.loading, v = Math.round(x.volume * 100);
@@ -859,13 +920,13 @@ function soundsPaneHtml(A, song) {
         <span class="snd-thumb" style="--art:url('../img/${x.art || x.id}.jpg')">${ico}</span>
         <span class="snd-meta"><b>${esc(x.name)}</b><small>${sub}</small></span>
       </button>
-      <button class="icon-btn snd-swell ${x.swell ? 'on' : ''}" data-swell="${x.id}" title="Dao động âm lượng (Swell)">${Icons.wave}</button>
+      <button class="icon-btn snd-swell ${x.swell ? 'on' : ''}" data-swell="${x.id}" title="Dâng sóng (Swell)">${Icons.wave}</button>
       <input type="range" class="vol snd-vol" data-vol="${x.id}" min="0" max="100" value="${v}" style="--v:${v}%" aria-label="Âm lượng ${esc(x.name)}">
     </div>`;
   }).join('');
 
-  return `<div class="snd-subbar">${filtersHtml}</div>
-    <div class="snd-list">${rows || '<div class="empty">Chưa có âm thanh nào đang bật.</div>'}</div>
+  return `${filterBar}
+    <div class="snd-list">${rows || '<div class="empty"><b>Chưa bật âm thanh nào</b><button class="btn small" data-do="snd-shuffle">Phát ngẫu nhiên</button></div>'}</div>
     ${pagerHtml('data-snd-page', pg, `${list.length} kênh`)}`;
 }
 
@@ -1011,12 +1072,12 @@ function viewSounds() {
   const stageSub = ytSynced ? `${yt.source || 'YouTube'} · ${yt.status === 'hidden' ? 'Đang chạy nền' : 'Đã đồng bộ'}`
     : (stageChannel.id === 'lofi' && song ? `${song.artist} · Nhạc Lo-Fi` : stageChannel.desc);
   const discLit = ytSynced ? (yt.status !== 'closed') : (A.playing && activeCount > 0);
-  const fadeLabel = A.fade ? `Tắt dần ${A.fade}p cuối` : 'Không tắt dần';
+  const fadeLabel = A.fade ? `Nhỏ dần ${A.fade} phút cuối` : 'Không nhỏ dần';
   const loopMode = A.lofiLoopMode || 'all';
   const loopIcon = loopMode === 'one' ? Icons.repeatOne : loopMode === 'shuffle' ? Icons.shuffle : Icons.repeat;
   const loopLabel = loopMode === 'one' ? 'Lặp 1 bài' : loopMode === 'shuffle' ? 'Phát ngẫu nhiên' : 'Lặp danh sách';
   const panPct = Math.round((stageChannel.pan || 0) * 100);
-  const panLabel = panPct === 0 ? 'Giữa' : panPct < 0 ? `Trái ${Math.abs(panPct)}%` : `Phải ${panPct}%`;
+  const panLabel = panPct === 0 ? 'Vừa' : panPct < 0 ? `Trái ${Math.abs(panPct)}%` : `Phải ${panPct}%`;
   const seekPct = Math.round(A.lofiProgress * 100);
 
   const subCtl = ytSynced
@@ -1030,7 +1091,7 @@ function viewSounds() {
         </div>`
       : `<div class="stage-subctl">
           <input type="range" class="vol pan-slider" data-pan="${stageChannel.id}" min="-100" max="100" value="${panPct}" style="--v:${(panPct + 100) / 2}%" aria-label="Cân bằng Trái/Phải">
-          <div class="stage-vol-meta num"><span>Không gian: ${panLabel}</span><button class="stage-fade-btn ${stageChannel.swell ? 'on' : ''}" data-swell="${stageChannel.id}">Swell ${stageChannel.swell ? 'Bật' : 'Tắt'}</button></div>
+          <div class="stage-vol-meta num"><span>Không gian: ${panLabel}</span><button class="stage-fade-btn ${stageChannel.swell ? 'on' : ''}" data-swell="${stageChannel.id}">Dâng sóng: ${stageChannel.swell ? 'Bật' : 'Tắt'}</button></div>
         </div>`;
 
   return `<section class="view sounds" data-key="v-sounds">
@@ -1079,16 +1140,15 @@ function viewPresets() {
       <div class="ico">${Icons[p.action]}</div>
       <div>${renaming === p.id
         ? `<div class="pname"><input data-rename-input="${p.id}" value="${esc(p.name)}" maxlength="40"></div>`
-        : `<div class="pname" data-rename="${p.id}" title="Nhấp đúp để đổi tên">${esc(p.name)}</div>`}
-        <div class="pdesc">${esc(S.describe(p.action, p.trigger))}</div></div>
-      <span class="tag">${S.TRIGGERS[p.trigger.type]}</span>
-      <button class="btn small" data-run="${p.id}">${Icons.play} Chạy</button>
-      <button class="icon-btn" data-del-preset="${p.id}" title="Xoá">${Icons.trash}</button>
+        : `<div class="pname" data-rename="${p.id}" title="${esc(p.name)}">${esc(p.name)}</div>`}
+        <div class="pdesc">${esc(S.ACTIONS[p.action].label)} · ${esc(S.triggerText(p.trigger))}</div></div>
+      <button class="btn ghost small row-act" data-run="${p.id}">${Icons.play} Chạy</button>
+      <button class="icon-btn row-more" data-pmenu="${p.id}" aria-label="Tuỳ chọn cho ${esc(p.name)}" title="Tuỳ chọn">⋯</button>
     </div>`).join('');
   return `<section class="view presets" data-key="v-presets">
     <div class="head"><h1>Preset</h1><span class="page-meta num">${st.presets.length} preset</span></div>
-    <div class="list fit" data-fit="presets">${rows || '<div class="empty">Chưa có preset. Tạo preset từ màn Hẹn giờ bằng nút "Lưu làm preset".</div>'}</div>
-    <div class="foot"><p class="note">Nhấp đúp vào tên để đổi tên. Preset cũng có thể được khởi chạy từ menu khay hệ thống.</p>${pager('presets', pg)}</div>
+    <div class="list fit" data-fit="presets">${rows || '<div class="empty"><b>Chưa có preset</b><p>Thiết lập hẹn giờ rồi chọn Lưu preset để chạy lại nhanh.</p><button class="btn small" data-view="timer">Đi tới Hẹn giờ</button></div>'}</div>
+    ${pg.count > 1 ? `<div class="foot">${pager('presets', pg)}</div>` : ''}
   </section>`;
 }
 
@@ -1117,27 +1177,39 @@ function viewSchedules() {
       <button class="btn primary" data-do="sched-add" title="Thêm lịch">${Icons.plus}<span>Thêm lịch</span></button>
     </div>
     <div class="list fit" data-fit="schedules">${rows || '<div class="empty">Chưa có lịch. Chọn thời gian, ngày và hành động để tạo lịch mới.</div>'}</div>
-    <div class="foot"><p class="note">Sleepy phải đang chạy để thực hiện lịch. Bật "Khởi động cùng hệ thống" nếu cần.</p>${pager('schedules', pg)}</div>
+    <div class="foot"><p class="note">Sleepy phải đang chạy để thực hiện lịch.${st.settings.autostart ? '' : ' <button class="link-btn" data-set="autostart" data-val="true">Bật khởi động cùng hệ thống</button>'}</p>${pager('schedules', pg)}</div>
   </section>`;
 }
 
 // ---------- 04 Nhật ký ----------
 function viewHistory() {
-  const badge = { done: '<span class="tag ok">Đã thực hiện</span>', cancel: '<span class="tag">Đã huỷ</span>', dry: '<span class="tag lamp">Thử</span>', error: '<span class="tag err">Lỗi</span>', pending: '<span class="tag">…</span>' };
-  const pg = paged('history', st.history);
+  const badge = {
+    done: '<span class="tag ok">✓ Đã thực hiện</span>',
+    cancel: '<span class="tag">✕ Đã huỷ</span>',
+    dry: '<span class="tag dry-tag">◌ Chạy thử</span>',
+    error: '<span class="tag err">! Lỗi</span>',
+    pending: '<span class="tag">…</span>',
+  };
+  const filtered = histFilter === 'all' ? st.history : st.history.filter((h) => h.result === histFilter);
+  const pg = paged('history', filtered);
   const rows = pg.rows.map((h) => {
     const d = new Date(h.at);
+    const src = sourceLabel(h.source);
     return `<tr data-row data-key="h-${h.id}"><td class="num">${pad(d.getDate())}/${pad(d.getMonth() + 1)} · ${S.hhmm(h.at)}</td>
       <td><b>${S.ACTIONS[h.action]?.label || h.action}</b><div class="sub">${esc(S.triggerText(h.trigger))}</div></td>
-      <td class="dim c-src">${esc(sourceLabel(h.source))}</td>
-      <td>${badge[h.result] || ''}${h.note && h.note !== 'Đã huỷ' ? `<div class="sub">${esc(h.note)}</div>` : ''}</td></tr>`;
+      <td class="dim c-src" title="${esc(src)}">${esc(src)}</td>
+      <td>${badge[h.result] || ''}${h.note && h.note !== 'Đã huỷ' ? `<div class="sub" title="${esc(h.note)}">${esc(h.note)}</div>` : ''}</td></tr>`;
   }).join('');
+  const filters = [['all', 'Tất cả'], ['done', 'Đã thực hiện'], ['cancel', 'Đã huỷ'], ['error', 'Lỗi'], ['dry', 'Chạy thử']]
+    .map(([k, l]) => `<button class="sub-tab ${histFilter === k ? 'on' : ''}" data-hfilter="${k}">${l}</button>`).join('');
   return `<section class="view" data-key="v-history">
     <div class="head"><h1>Nhật ký</h1>
-      ${st.history.length ? '<button class="btn ghost small" data-do="hist-clear">Xoá nhật ký…</button>' : ''}</div>
+      <div class="head-actions"><div class="hist-filters">${filters}</div>${st.history.length ? '<button class="btn ghost small" data-do="hist-clear">Xoá nhật ký…</button>' : ''}</div></div>
     <div class="fit" data-fit="history">${rows ? `<table class="hist"><colgroup><col class="c-time"><col><col class="c-src"><col class="c-res"></colgroup>
       <thead><tr><th>Thời gian</th><th>Hành động</th><th class="c-src">Nguồn</th><th>Kết quả</th></tr></thead><tbody>${rows}</tbody></table>`
-      : '<div class="empty">Chưa có dữ liệu hoạt động.</div>'}</div>
+      : histFilter !== 'all'
+        ? '<div class="empty"><b>Không có mục khớp bộ lọc</b><button class="btn small" data-hfilter="all">Xoá bộ lọc</button></div>'
+        : '<div class="empty"><b>Chưa có hoạt động</b><p>Mỗi lần hẹn giờ chạy, bị huỷ hoặc lỗi sẽ hiện ở đây.</p></div>'}</div>
     ${pg.count > 1 ? `<div class="foot">${pager('history', pg)}</div>` : ''}
   </section>`;
 }
@@ -1161,7 +1233,7 @@ function viewSettings() {
       ${setRow('Báo trước', 'Hiển thị cửa sổ cảnh báo trước khi thực hiện hành động.', seg('warnMinutes', [[0, 'Không'], [1, '1 phút'], [2, '2 phút'], [5, '5 phút'], [10, '10 phút']]))}
       ${setRow('Thời gian chờ sau điều kiện', 'Khoảng trì hoãn sau khi điều kiện được đáp ứng.', seg('graceSeconds', [[30, '30 giây'], [60, '60 giây'], [120, '2 phút']]))}
       ${setRow('Âm báo', 'Phát âm thanh khi cảnh báo và trong 10 giây cuối.', sw('sound'))}
-      ${setRow('Chế độ thử', 'Chỉ hiển thị thông báo, không thực hiện hành động hệ thống.', sw('dryRun'))}
+      <div class="set ${st.settings.dryRun ? 'set-warn' : ''}"><div><b>Chế độ thử</b><p>Chỉ hiển thị thông báo, không thực hiện hành động hệ thống.</p></div>${sw('dryRun')}</div>
     </div>
     <div class="${g('app')}"><h2>Ứng dụng</h2>
       ${setRow('Giao diện', 'Chọn giao diện hiển thị.', seg('theme', [['dark', 'Tối'], ['light', 'Sáng'], ['system', 'Theo hệ thống']]))}
@@ -1238,6 +1310,8 @@ document.addEventListener('click', async (e) => {
   }
   if ('fadeCycle' in ds) { const i = FADES.indexOf(Ambient.fade); return Ambient.setFade(FADES[(i + 1) % FADES.length]); }
   if (ds.fade) return Ambient.setFade(+ds.fade);
+  if (ds.hfilter) { histFilter = ds.hfilter; pages.history.page = 0; return render(); }
+  if (ds.pmenu) { const p = st.presets.find((x) => x.id === ds.pmenu); if (p) openPresetMenu(t, p); return; }
   if (ds.stab) { setTab = ds.stab; return render(); }
   if (ds.page) { const [k, d] = ds.page.split(':'); pages[k].page += +d; return render(); }
   if (ds.run) { const p = st.presets.find((x) => x.id === ds.run); if (p) { await start(p.action, p.trigger, `preset:${p.id}`); view = 'timer'; render(); } return; }
@@ -1393,6 +1467,7 @@ document.addEventListener('input', (e) => {
 document.addEventListener('change', (e) => {
   const t = e.target;
   if (t.dataset.text) sleepy.setSettings({ [t.dataset.text]: t.value });
+  if ('sfilterDd' in t.dataset) { sndFilter = t.dataset.value; sndPage = 0; render(); }
   if ('sact' in t.dataset) sched.action = t.dataset.value;
   if (t.dataset.sactRow) {
     const id = t.dataset.sactRow, action = t.dataset.value;

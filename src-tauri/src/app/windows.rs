@@ -279,7 +279,7 @@ fn apply_video_only_script(wv: &Webview, enabled: bool) {
     }
     html.sleepy-vo #movie_player video, html.sleepy-vo #song-video video {
       position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important;
-      left: 0 !important; top: 0 !important; object-fit: contain !important;
+      left: 0 !important; top: 0 !important; object-fit: cover !important;
     }
   `;
   let el = document.getElementById('sleepy-video-only');

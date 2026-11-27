@@ -892,7 +892,7 @@ function youtubePaneHtml(A) {
     </div>`;
   }
 
-  return `${bar}<div id="yt-embed-slot" class="yt-slot ${open && ytShowFrame ? 'live' : ''}">${slotBody}</div>`;
+  return `${bar}<div class="yt-stage-wrap"><div id="yt-embed-slot" class="yt-slot ${open && ytShowFrame ? 'live' : ''} ${open && ytShowFrame && yt.videoOnly ? 'video-only' : ''}">${slotBody}</div></div>`;
 }
 
 function viewSounds() {

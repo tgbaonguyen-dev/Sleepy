@@ -28,7 +28,7 @@
   --ease: cubic-bezier(.22, .9, .25, 1);
   /* Bố cục cố định theo khung cửa sổ: mọi kích thước co giãn theo vw/vh, không bao giờ cuộn. */
   --title-h: 40px;
-  --rail-w: 92px;
+  --rail-w: 164px;
   --pad-x: clamp(16px, 3vw, 44px);
   --pad-y: clamp(10px, 2.2vh, 26px);
   color-scheme: dark;
@@ -83,27 +83,43 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
 /* ---------- Khung ---------- */
 .app { position: relative; display: grid; grid-template-columns: var(--rail-w) minmax(0, 1fr); grid-template-rows: var(--title-h) minmax(0, 1fr);
   width: 100vw; height: 100vh; overflow: hidden; }
+/* ---------- Thanh tiêu đề + thanh bên ----------
+   Cùng một cấu trúc ở hai giao diện, chỉ khác màu (các biến --nav-*). Rộng: biểu tượng + nhãn nhỏ;
+   hẹp (phóng to): chỉ còn biểu tượng, nhãn nằm trong title (tooltip). */
+:root { --nav-hover: rgba(255, 255, 255, .035); --nav-on-bg: rgba(255, 255, 255, .06); --nav-on-ink: var(--ink); --nav-bar: var(--moon); }
+:root[data-theme='light'] { --nav-hover: #F1E8DE; --nav-on-bg: #FCE7DC; --nav-on-ink: var(--moon-2); --nav-bar: var(--moon); }
 .titlebar { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; padding-left: 22px; }
-.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; letter-spacing: -.01em; }
-.brand svg { width: 22px; height: 22px; color: var(--moon); filter: drop-shadow(0 0 8px var(--halo)); }
-.brand small { font-weight: 400; color: var(--ink-3); font-size: 12.5px; }
-.winctl { display: flex; gap: 2px; height: 100%; align-items: center; padding-right: 8px; }
-.winctl button { width: 34px; height: 30px; border-radius: 8px; display: grid; place-items: center; color: var(--ink-3); }
+.brand { display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 600; letter-spacing: -.005em; }
+.brand svg { width: 18px; height: 18px; display: block; color: var(--moon); filter: drop-shadow(0 0 6px var(--halo)); }
+.brand small { font-size: 11.5px; font-weight: 400; letter-spacing: .01em; color: var(--ink-3); padding-left: 10px; margin-left: 1px; border-left: 1px solid var(--line-2); line-height: 12px; }
+.winctl { display: flex; gap: 2px; height: 100%; align-items: center; padding-right: 6px; }
+.winctl button { width: 32px; height: 28px; border-radius: 7px; display: grid; place-items: center; color: var(--ink-3); }
 .winctl button:hover { background: var(--surface-2); color: var(--ink); }
 .winctl button.close:hover { background: var(--danger); color: #fff; }
 
-.rail { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0 16px; }
-.rail button { width: 72px; padding: 10px 0 8px; border-radius: 14px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--ink-3); font-size: 11.5px; transition: background .2s, color .2s; }
-.rail button svg { width: 22px; height: 22px; }
-.rail button:hover { color: var(--ink); background: var(--surface); }
-.rail button.on { color: var(--ink); background: var(--surface-2); }
-.rail button.on svg { color: var(--moon); filter: drop-shadow(0 0 6px var(--halo)); }
-.rail .badge { min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--moon); color: var(--moon-ink); font-size: 10.5px; font-weight: 600; line-height: 18px; margin-top: -2px; }
-.mini { margin-top: auto; width: 72px; border-radius: 16px; padding: 10px 6px; text-align: center; background: var(--surface); border: 1px solid var(--line); cursor: pointer; }
-.mini svg { width: 46px; height: 46px; display: block; margin: 0 auto 4px; }
-.mini .v { font-size: 13px; font-weight: 600; }
-.mini .d { font-size: 10.5px; color: var(--ink-3); }
-.mini.idle { opacity: .7; }
+.rail { position: relative; display: flex; flex-direction: column; gap: 2px; padding: 6px 10px 12px; min-height: 0; }
+.rail button { position: relative; z-index: 1; flex: none; height: 40px; display: flex; align-items: center; gap: 11px; padding: 0 11px; border-radius: 10px;
+  color: var(--ink-3); font-size: 11.5px; font-weight: 500; letter-spacing: .02em; white-space: nowrap; transition: color .2s var(--ease), background .2s var(--ease); }
+.rail button svg { width: 20px; height: 20px; flex: none; transition: color .2s var(--ease); }
+.rail button:hover { color: var(--ink-2); background: var(--nav-hover); }
+.rail button.on, .rail button.on:hover { color: var(--nav-on-ink); background: none; }
+.rail button.on svg { color: var(--moon); }
+.rail .badge { margin-left: auto; min-width: 17px; height: 17px; padding: 0 5px; border-radius: 9px; font-size: 10px; font-weight: 600; line-height: 17px; letter-spacing: 0;
+  text-align: center; background: color-mix(in srgb, var(--moon) 18%, transparent); color: var(--moon); }
+/* Chỉ báo trượt: nền mờ (::after) + vạch nhấn bên trái (::before). Vị trí do JS ghi vào --ind-y / --ind-h. */
+.rail::after, .rail::before { content: ''; position: absolute; top: 0; opacity: var(--ind-on, 0); pointer-events: none;
+  transition: transform var(--ind-d, .28s) var(--ease), height var(--ind-d, .28s) var(--ease); }
+.rail::after { left: 10px; right: 10px; height: var(--ind-h, 0px); transform: translateY(var(--ind-y, 0px)); border-radius: 10px; background: var(--nav-on-bg); }
+.rail::before { z-index: 2; left: 10px; width: 3px; height: 16px; transform: translateY(calc(var(--ind-y, 0px) + var(--ind-h, 0px) / 2 - 8px));
+  border-radius: 0 3px 3px 0; background: var(--nav-bar); box-shadow: 0 0 8px var(--halo); }
+/* Trạng thái thu gọn ở đáy thanh bên */
+.mini { margin-top: auto; flex: none; display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: 10px; align-items: center; padding: 8px 11px;
+  border-radius: 10px; cursor: pointer; transition: opacity .3s var(--ease), background .2s var(--ease); }
+.mini:hover { background: var(--nav-hover); }
+.mini svg { grid-row: span 2; width: 28px; height: 28px; display: block; }
+.mini .v { font-size: 12.5px; font-weight: 600; line-height: 1.25; letter-spacing: -.005em; }
+.mini .d { font-size: 10.5px; color: var(--ink-3); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini.idle { opacity: .75; }
 
 .main { overflow: hidden; position: relative; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .view { padding: var(--pad-y) var(--pad-x); flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -341,20 +357,11 @@ h1 { font-size: clamp(18px, 1.2vw + 1.3vh + 3px, 25px); font-weight: 600; letter
 .pager .icon-btn:disabled { opacity: .3; cursor: default; background: none; }
 .pager .num { min-width: 3.4em; text-align: center; font-size: 12px; color: var(--ink-3); }
 
-.mini { background: none; border: 0; }
-.rail button.on { background: none; }
-.rail button.on span { color: var(--ink); }
-.rail button { position: relative; }
 
 /* ---------- Theme sáng kiểu Todoist: trắng, phẳng, đỏ cà chua, bo góc vừa ---------- */
 [data-theme='light'] .titlebar { background: #F8F2EA; }
 [data-theme='light'] .app { background: linear-gradient(90deg, #F8F2EA var(--rail-w), #FFFDFA var(--rail-w)); }
 [data-theme='light'] .brand svg { filter: none; }
-[data-theme='light'] .rail button { border-radius: 6px; }
-[data-theme='light'] .rail button:hover { background: #F4EDE5; }
-[data-theme='light'] .rail button.on { background: #FCE7DC; color: var(--moon); }
-[data-theme='light'] .rail button.on span { color: var(--moon); }
-[data-theme='light'] .rail button.on svg { filter: none; }
 [data-theme='light'] .btn { border-radius: 6px; border-color: var(--line-2); background: #FFFFFF; }
 [data-theme='light'] .btn:hover { background: #F4EDE5; }
 [data-theme='light'] .btn.primary { background: var(--moon); color: #fff; box-shadow: none; }
@@ -491,18 +498,6 @@ h1 { font-size: clamp(18px, 1.2vw + 1.3vh + 3px, 25px); font-weight: 600; letter
 /* ---------- Chuyển trạng thái mượt ----------
    Nút được giữ nguyên qua các lần vẽ lại (morph.js), nên đổi lựa chọn giờ chạy bằng transition CSS. */
 .day { transition: background .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease); }
-.mini { transition: opacity .3s var(--ease); }
-.rail button { z-index: 1; }
-
-/* Thanh bên: một vạch sáng (Đêm) / một nền nhạt (Sáng) trượt tới mục đang chọn. Vị trí do JS ghi vào
-   --ind-y / --ind-h trên #rail. */
-.rail { position: relative; }
-.rail::after { content: ''; position: absolute; left: 10px; top: 0; width: 3px; height: calc(var(--ind-h, 0px) - 36px);
-  transform: translateY(calc(var(--ind-y, 0px) + 14px)); border-radius: 2px; background: var(--moon); box-shadow: 0 0 10px var(--moon);
-  opacity: var(--ind-on, 0); transition: transform var(--ind-d, .28s) var(--ease), height var(--ind-d, .28s) var(--ease); }
-[data-theme='light'] .rail::after { width: 72px; height: var(--ind-h, 0px); transform: translateY(var(--ind-y, 0px)); border-radius: 6px;
-  background: #FCE7DC; box-shadow: none; z-index: 0; }
-[data-theme='light'] .rail button.on, [data-theme='light'] .rail button.on:hover { background: none; }
 
 /* Nút phân đoạn: nền của mục đang chọn là một miếng trượt (::before), vị trí do JS ghi vào --ind-x / --ind-w. */
 .seg { position: relative; isolation: isolate; }
@@ -532,4 +527,18 @@ h1 { font-size: clamp(18px, 1.2vw + 1.3vh + 3px, 25px); font-weight: 600; letter
   .settings .group:not(.cur) { display: block; }
   .settings .group h2 { display: block; }
   .settings .group[data-g='adv'] { grid-column: 1 / -1; }
+}
+
+/* ---------- Thanh bên chỉ còn biểu tượng khi cửa sổ hẹp (hoặc phóng to): nhãn ẩn, tooltip qua title ---------- */
+@media (max-width: 980px) {
+  :root { --rail-w: 64px; }
+  .titlebar { padding-left: 22px; }
+  .rail button { justify-content: center; padding: 0; gap: 0; }
+  .rail button > span:not(.badge) { display: none; }
+  .rail .badge { position: absolute; top: 4px; right: 5px; min-width: 15px; height: 15px; padding: 0 4px; line-height: 15px; font-size: 9.5px;
+    background: var(--moon); color: var(--moon-ink); }
+  .mini { grid-template-columns: 1fr; justify-items: center; row-gap: 4px; padding: 8px 0; }
+  .mini svg { grid-row: auto; }
+  .mini .v { font-size: 10.5px; }
+  .mini .d { display: none; }
 }

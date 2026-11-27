@@ -244,14 +244,23 @@ fn fetch_yt_thumbnail_cached(video_id: &str) -> Option<String> {
         }
     }
 
-    let url = format!("https://i.ytimg.com/vi/{video_id}/hqdefault.jpg");
-    let output = std::process::Command::new("curl")
-        .args(["-fsSL", "--max-time", "4", &url])
-        .output()
-        .ok();
-    let data_url = output
-        .filter(|o| o.status.success() && !o.stdout.is_empty())
-        .map(|o| format!("data:image/jpeg;base64,{}", encode_base64(&o.stdout)));
+    // Ưu tiên maxresdefault (1280x720, không viền đen), sau đó sddefault rồi hqdefault.
+    let candidates = [
+        format!("https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg"),
+        format!("https://i.ytimg.com/vi/{video_id}/sddefault.jpg"),
+        format!("https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"),
+    ];
+    let mut data_url = None;
+    for url in candidates {
+        let output = std::process::Command::new("curl")
+            .args(["-fsSL", "--max-time", "4", &url])
+            .output()
+            .ok();
+        if let Some(o) = output.filter(|o| o.status.success() && o.stdout.len() > 2048) {
+            data_url = Some(format!("data:image/jpeg;base64,{}", encode_base64(&o.stdout)));
+            break;
+        }
+    }
 
     let mut guard = YT_CACHE.lock().unwrap_or_else(|e| e.into_inner());
     *guard = Some(YtThumbCache {

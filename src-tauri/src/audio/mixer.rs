@@ -54,6 +54,31 @@ pub struct ChannelView {
     pub swell: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LofiLoopMode {
+    All,
+    One,
+    Shuffle,
+}
+
+impl LofiLoopMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::All => "all",
+            Self::One => "one",
+            Self::Shuffle => "shuffle",
+        }
+    }
+
+    pub fn next(self) -> Self {
+        match self {
+            Self::All => Self::One,
+            Self::One => Self::Shuffle,
+            Self::Shuffle => Self::All,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AudioStateSnapshot {
@@ -67,6 +92,7 @@ pub struct AudioStateSnapshot {
     pub lofi_track: Option<TrackInfo>,
     pub lofi_tracks: Vec<TrackInfo>,
     pub lofi_progress: f32,
+    pub lofi_loop_mode: String,
     pub error: Option<String>,
     pub channels: Vec<ChannelView>,
     pub presets: &'static [PresetMixSpec],
@@ -92,6 +118,7 @@ pub enum AudioCmd {
     PrevLofi,
     SelectLofiTrack(String),
     SeekLofi(f32),
+    CycleLofiLoop,
     AddCustomDir(PathBuf),
     AddCustomFiles(Vec<PathBuf>),
     RemoveCustomTrack(String),
@@ -121,6 +148,7 @@ struct ChannelRuntime {
 struct LofiState {
     tracks: Vec<TrackEntry>,
     current_idx: usize,
+    loop_mode: LofiLoopMode,
     seed: u64,
 }
 
@@ -141,6 +169,7 @@ impl LofiState {
         Self {
             tracks,
             current_idx: 0,
+            loop_mode: LofiLoopMode::All,
             seed: 0x10F1_2026_CAFE_BABE,
         }
     }
@@ -150,7 +179,20 @@ impl LofiState {
     }
 
     fn next(&mut self) {
-        if !self.tracks.is_empty() {
+        if self.tracks.is_empty() {
+            return;
+        }
+        if self.loop_mode == LofiLoopMode::Shuffle && self.tracks.len() > 1 {
+            self.seed = self
+                .seed
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            let mut idx = ((self.seed >> 32) as usize) % self.tracks.len();
+            if idx == self.current_idx {
+                idx = (idx + 1) % self.tracks.len();
+            }
+            self.current_idx = idx;
+        } else {
             self.current_idx = (self.current_idx + 1) % self.tracks.len();
         }
     }
@@ -386,6 +428,7 @@ impl MixerEngine {
                 lofi_track: None,
                 lofi_tracks: Vec::new(),
                 lofi_progress: 0.0,
+                lofi_loop_mode: "all".into(),
                 error: None,
                 channels: Vec::new(),
                 presets: PRESET_MIXES,
@@ -508,6 +551,10 @@ impl MixerEngine {
                         ch.cursor = target_frame * TARGET_CHANNELS;
                     }
                 }
+                self.publish_snapshot();
+            }
+            AudioCmd::CycleLofiLoop => {
+                self.lofi.loop_mode = self.lofi.loop_mode.next();
                 self.publish_snapshot();
             }
             AudioCmd::AddCustomDir(dir) => match self.lofi.add_dir(&dir) {
@@ -802,7 +849,7 @@ impl MixerEngine {
             let is_lofi = matches!(spec.kind, ChannelKind::LofiRadio);
             for frame in mix_buf.chunks_exact_mut(TARGET_CHANNELS) {
                 if ch.cursor + 1 >= total_samples {
-                    if is_lofi {
+                    if is_lofi && self.lofi.loop_mode != LofiLoopMode::One {
                         lofi_finished = true;
                         break;
                     }
@@ -885,6 +932,7 @@ impl MixerEngine {
             lofi_track: self.lofi.current().map(|t| t.info.clone()),
             lofi_tracks: self.lofi.tracks.iter().map(|t| t.info.clone()).collect(),
             lofi_progress,
+            lofi_loop_mode: self.lofi.loop_mode.as_str().to_string(),
             error: self.error.clone(),
             channels,
             presets: PRESET_MIXES,

@@ -50,6 +50,7 @@ pub fn run() {
             audio_prev_lofi,
             audio_select_lofi,
             audio_seek_lofi,
+            audio_cycle_lofi_loop,
             audio_set_pan,
             audio_toggle_swell,
             audio_shuffle_mix,

@@ -256,6 +256,11 @@ pub fn audio_seek_lofi(state: State<'_, AppState>, ratio: f32) {
 }
 
 #[tauri::command]
+pub fn audio_cycle_lofi_loop(state: State<'_, AppState>) {
+    state.audio.send(AudioCmd::CycleLofiLoop);
+}
+
+#[tauri::command]
 pub fn audio_set_pan(state: State<'_, AppState>, id: String, pan: f32) {
     state.audio.send(AudioCmd::SetPan(id, pan));
 }

@@ -2,5 +2,6 @@
 
 mod action;
 pub mod format;
+pub mod time;
 
 pub use action::Action;

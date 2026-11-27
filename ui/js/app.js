@@ -749,7 +749,7 @@ function viewRunning() {
   const a = S.ACTIONS[j.action].label;
   return `<section class="view running" data-key="v-running">
     <h1 class="sr-only clip-fit">Đang hẹn giờ</h1>
-    <button class="awake-meta ${st.settings.keepAwake ? 'on' : ''}" data-set="keepAwake" data-val="${!st.settings.keepAwake}" title="${st.settings.keepAwake ? 'Đang giữ màn hình và hệ thống thức — bấm để tắt' : 'Cho phép màn hình tắt theo hệ thống — bấm để bật giữ thức'}">
+    <button class="awake-pill awake-meta ${st.settings.keepAwake ? 'on' : ''}" data-set="keepAwake" data-val="${!st.settings.keepAwake}" title="${st.settings.keepAwake ? 'Đang giữ màn hình và hệ thống thức — bấm để tắt' : 'Cho phép màn hình tắt theo hệ thống — bấm để bật giữ thức'}">
       ${Icons.moon}<span>${st.settings.keepAwake ? 'Đang giữ máy thức' : 'Giữ máy thức: Tắt'}</span>
     </button>
     <div class="orb rise d1" id="orb" data-morph-keep="class"><svg viewBox="0 0 400 400" id="orb-svg" data-own></svg>
@@ -1488,14 +1488,107 @@ function stepDial(t, dir) {
   t.value = fmtDial(t, setDial(t, v)); dialChanged();
 }
 document.addEventListener('wheel', (e) => { const t = e.target.closest('[data-dial]'); if (!t) return; e.preventDefault(); stepDial(t, e.deltaY < 0 ? 1 : -1); }, { passive: false });
+// Command palette (Ctrl+K) & bảng phím tắt (?)
+let paletteEl = null;
+function closePalette() {
+  if (!paletteEl) return;
+  paletteEl.remove();
+  paletteEl = null;
+}
+function openShortcutsHelp() {
+  closePalette();
+  const ov = document.createElement('div');
+  ov.className = 'pal-bg';
+  ov.innerHTML = `<div class="pal" role="dialog" aria-label="Phím tắt">
+    <div class="pal-head"><b>Phím tắt</b><button class="toast-x" data-pal-close aria-label="Đóng">×</button></div>
+    <div class="pal-keys">
+      <div><span>Chuyển màn hình</span><kbd>Ctrl+1…6</kbd></div>
+      <div><span>Mở bảng lệnh nhanh</span><kbd>Ctrl+K</kbd></div>
+      <div><span>Bắt đầu hẹn giờ</span><kbd>Ctrl+Enter</kbd></div>
+      <div><span>Chọn nhanh mốc thời gian</span><kbd>1…7</kbd></div>
+      <div><span>Huỷ hẹn giờ đang chạy</span><kbd>Esc</kbd></div>
+      <div><span>Phát / tạm dừng âm thanh</span><kbd>Space</kbd></div>
+      <div><span>Hoàn tác lần xoá/huỷ gần nhất</span><kbd>Ctrl+Z</kbd></div>
+      <div><span>Đổi tên preset đang chọn</span><kbd>F2</kbd></div>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  paletteEl = ov;
+  ov.addEventListener('click', (e) => { if (e.target === ov || e.target.closest('[data-pal-close]')) closePalette(); });
+  ov.querySelector('[data-pal-close]').focus({ preventScroll: true });
+}
+function openCommandPalette() {
+  if (paletteEl) { closePalette(); return; }
+  const items = [
+    ...VIEWS.map(([k, l], i) => ({ label: `Đi tới ${l}`, hint: `Ctrl+${i + 1}`, run: () => { view = k; savingPreset = false; render(); } })),
+    ...(st?.presets || []).map((p) => ({ label: `Chạy preset: ${p.name}`, hint: S.ACTIONS[p.action]?.label || '', run: () => { start(p.action, p.trigger, `preset:${p.id}`); view = 'timer'; render(); } })),
+    { label: Ambient.playing ? 'Tạm dừng âm thanh nền' : 'Phát âm thanh nền', hint: 'Space', run: () => Ambient.togglePlay() },
+    { label: 'Trộn ngẫu nhiên 3 âm thanh', hint: 'Âm thanh', run: () => { Ambient.shuffle(); view = 'sounds'; render(); } },
+    { label: 'Tắt hết âm thanh nền', hint: 'Âm thanh', run: () => Ambient.clearAll() },
+    { label: 'Đổi giao diện Sáng / Tối', hint: 'Cài đặt', run: () => sleepy.setSettings({ theme: document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark' }) },
+    { label: 'Xem bảng phím tắt', hint: '?', run: () => openShortcutsHelp() },
+  ];
+  const ov = document.createElement('div');
+  ov.className = 'pal-bg';
+  ov.innerHTML = `<div class="pal" role="dialog" aria-label="Bảng lệnh nhanh">
+    <input class="pal-in" placeholder="Tìm màn hình, preset, lệnh nhanh…" autocomplete="off">
+    <div class="pal-list"></div>
+  </div>`;
+  document.body.appendChild(ov);
+  paletteEl = ov;
+  const input = ov.querySelector('.pal-in');
+  const listEl = ov.querySelector('.pal-list');
+  let active = 0, filtered = items;
+  const paint = () => {
+    const q = input.value.trim().toLowerCase();
+    filtered = q ? items.filter((it) => `${it.label} ${it.hint}`.toLowerCase().includes(q)) : items;
+    active = Math.max(0, Math.min(active, Math.max(0, filtered.length - 1)));
+    listEl.innerHTML = filtered.length
+      ? filtered.map((it, i) => `<button class="pal-item ${i === active ? 'on' : ''}" data-pi="${i}"><span>${esc(it.label)}</span><kbd>${esc(it.hint)}</kbd></button>`).join('')
+      : '<div class="pal-empty">Không tìm thấy lệnh phù hợp</div>';
+  };
+  paint();
+  input.focus({ preventScroll: true });
+  input.addEventListener('input', () => { active = 0; paint(); });
+  listEl.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-pi]');
+    if (!b) return;
+    const it = filtered[+b.dataset.pi];
+    closePalette();
+    if (it) it.run();
+  });
+  ov.addEventListener('click', (e) => { if (e.target === ov) closePalette(); });
+  ov.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); closePalette(); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); active = (active + 1) % Math.max(1, filtered.length); paint(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); active = (active - 1 + Math.max(1, filtered.length)) % Math.max(1, filtered.length); paint(); }
+    else if (e.key === 'Enter' && filtered[active]) { e.preventDefault(); const it = filtered[active]; closePalette(); it.run(); }
+  });
+}
+
 document.addEventListener('keydown', (e) => {
   const t = e.target;
+  const inInput = ['INPUT', 'TEXTAREA'].includes(t.tagName);
+  if (e.ctrlKey && e.key.toLowerCase() === 'k') { e.preventDefault(); openCommandPalette(); return; }
+  if (paletteEl) { if (e.key === 'Escape') { e.preventDefault(); closePalette(); } return; }
   if (t.dataset?.dial && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); stepDial(t, e.key === 'ArrowUp' ? 1 : -1); return; }
   if (t.dataset?.renameInput) { if (e.key === 'Enter') t.blur(); if (e.key === 'Escape') { renaming = null; render(); } return; }
   if (t.id === 'preset-name') { if (e.key === 'Enter') savePreset(); if (e.key === 'Escape') { savingPreset = false; render(); } return; }
   if (t.id === 'mix-name') { if (e.key === 'Enter') $('[data-do="mix-save"]')?.click(); if (e.key === 'Escape') { savingMix = false; render(); } return; }
-  if (e.ctrlKey && e.key.toLowerCase() === 'z' && !['INPUT', 'TEXTAREA'].includes(t.tagName)) {
+  if (e.ctrlKey && e.key.toLowerCase() === 'z' && !inInput) {
     if (runUndo()) { e.preventDefault(); return; }
+  }
+  if (!inInput && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    if (e.key === '?') { e.preventDefault(); openShortcutsHelp(); return; }
+    if (e.key === ' ' && view === 'sounds' && t.tagName !== 'BUTTON') { e.preventDefault(); Ambient.togglePlay(); return; }
+    if (view === 'timer' && !snap?.job && /^[1-7]$/.test(e.key)) {
+      const chip = document.querySelectorAll('.stage .chips .chip')[+e.key - 1];
+      if (chip) { e.preventDefault(); chip.click(); return; }
+    }
+    if (e.key === 'F2' && view === 'presets') {
+      const row = t.closest?.('[data-key^="p-"]');
+      if (row) { e.preventDefault(); renaming = row.dataset.key.slice(2); render(); return; }
+    }
   }
   if (e.key === 'Escape' && view === 'timer' && snap?.job && !confirmPop && !Dropdown.isOpen()) {
     e.preventDefault();
@@ -1507,7 +1600,9 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (e.ctrlKey && /^[1-6]$/.test(e.key)) { view = VIEWS[+e.key - 1][0]; savingPreset = false; render(); return; }
-  if (e.key === 'Enter' && view === 'timer' && !snap?.job && t.tagName !== 'BUTTON') start(draft.action, trigger(), 'manual');
+  if ((e.key === 'Enter' && e.ctrlKey || (e.key === 'Enter' && t.tagName !== 'BUTTON')) && view === 'timer' && !snap?.job) {
+    start(draft.action, trigger(), 'manual');
+  }
 });
 
 // ---------- Tiến trình ----------

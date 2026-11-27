@@ -319,6 +319,20 @@ html.dragging-dial, html.dragging-dial * { cursor: grabbing !important; -webkit-
 .icon-btn svg { width: 18px; height: 18px; }
 .icon-btn:hover { color: var(--danger); background: var(--surface-2); }
 .empty { padding: 56px 20px; color: var(--ink-3); text-align: center; border: 1px dashed var(--line-2); border-radius: 22px; }
+.pal-bg { position: fixed; inset: 0; z-index: 80; background: rgba(6, 9, 20, .55); display: grid; place-items: start center; padding-top: 14vh; }
+.pal { width: min(460px, calc(100vw - 32px)); border-radius: var(--r-lg); background: var(--surface-2); border: 1px solid var(--line-2);
+  box-shadow: var(--shadow); overflow: hidden; }
+.pal-in { width: 100%; padding: 12px 14px; background: transparent; border: 0; border-bottom: 1px solid var(--line); font-size: var(--fs-body); color: var(--ink); }
+.pal-list { max-height: 280px; overflow: auto; padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+.pal-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border-radius: var(--r-md);
+  font-size: var(--fs-control); color: var(--ink-2); text-align: left; }
+.pal-item.on, .pal-item:hover { background: var(--surface-3); color: var(--ink); }
+.pal-item kbd, .pal-keys kbd { font-family: var(--mono); font-size: var(--fs-micro); padding: 2px 6px; border-radius: var(--r-xs);
+  background: var(--surface); border: 1px solid var(--line); color: var(--ink-3); white-space: nowrap; }
+.pal-empty { padding: 20px; text-align: center; font-size: var(--fs-caption); color: var(--ink-3); }
+.pal-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: var(--fs-body); }
+.pal-keys { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
+.pal-keys > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: var(--fs-control); color: var(--ink-2); }
 .pmenu { min-width: 170px; padding: 4px; display: flex; flex-direction: column; gap: 2px; }
 .pmenu button { text-align: left; padding: 7px 10px; border-radius: var(--r-sm); font-size: var(--fs-control); color: var(--ink-2); }
 .pmenu button:hover, .pmenu button:focus-visible { background: var(--surface-3); color: var(--ink); }
@@ -664,9 +678,11 @@ body { font-size: 13.5px; }
   .cond .chips { gap: 6px; }
   .cond .chip { padding: 4px 10px; font-size: 12px; }
   .sentence, .sentence input { font-size: 14px; }
-  .sentence { line-height: 1.85; }
-  .bar { padding-bottom: 12px; }
-  .btn.big { padding: 9px 18px; font-size: 13.5px; }
+  .sentence { line-height: 1.7; }
+  .bar { min-height: 48px; padding: 6px var(--pad-x); }
+  .sys-banner { min-height: 28px; padding: 4px var(--pad-x); }
+  .side { gap: 10px; }
+  .btn.big { padding: 9px 18px; font-size: var(--fs-control); }
   .item { padding: 8px 4px; }
 }
 /* ---------- Rất thấp: phóng to 150% trở lên (≈ 707×507, 640×480) ----------

@@ -100,7 +100,7 @@ const theme = args.includes('--theme') ? args[args.indexOf('--theme') + 1] : 'da
   const sw = await p.evaluate(() => ({ old: window.__nodes['#main > section.view'].isConnected, key: document.querySelector('#main > section.view').dataset.key, rail: window.__nodes['#rail button[data-view=timer]'].isConnected }));
   check('switching view swaps content', !sw.old && sw.key === 'v-presets', sw);
   check('switching view keeps sidebar buttons', sw.rail);
-  await p.keyboard.press('Control+3'); await p.waitForTimeout(450);
+  await p.keyboard.press('Control+4'); await p.waitForTimeout(450);
   await p.evaluate((s) => window.__probe(s), ['#main > section.view', '.switch[data-stoggle=s2]', '.item[data-key=s-s1]']);
   await p.click('.switch[data-stoggle=s2]'); await p.waitForTimeout(250);
   alive = await p.evaluate(() => window.__alive());

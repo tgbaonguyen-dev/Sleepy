@@ -263,6 +263,7 @@ function viewSetup() {
         <div id="side-mode"><div class="label">Thời điểm</div>
           <div class="seg wide" data-morph-keep="style"><button class="${mode === 'countdown' ? 'on' : ''}" data-mode="countdown">Thời lượng</button><button class="${mode === 'at' ? 'on' : ''}" data-mode="at">Giờ cụ thể</button><button class="${mode === 'cond' ? 'on' : ''}" data-mode="cond">Điều kiện</button></div></div>
         <div id="side-detail">${mode === 'cond' ? condCard() : `<p class="note">${mode === 'countdown' ? 'Kéo vòng để đặt thời lượng. Dùng con lăn hoặc phím mũi tên để điều chỉnh; giữ Shift để thay đổi theo bước 5 phút.' : 'Kéo vòng để chọn giờ thực hiện. Giờ đã qua sẽ được áp dụng cho ngày hôm sau.'}</p>`}</div>
+        ${mode === 'cond' ? '' : quickSoundsHtml()}
       </div>
     </div>
   </section>
@@ -663,32 +664,257 @@ function updateRunning() {
   }
 }
 
-// ---------- Âm thanh nền ----------
-const FADES = [[0, 'Không'], [5, '5 phút'], [10, '10 phút'], [20, '20 phút'], [30, '30 phút']];
-function viewSounds() {
-  const A = Ambient, cfg = A.config, song = A.song();
-  const status = A.error ? `<span class="err">${esc(A.error)}</span>` : A.stoppedByTimer ? 'Đã tắt theo hẹn giờ'
-    : A.playing ? (A.fading ? `Đang nhỏ dần · ${Math.round(A.fadeLevel * 100)}%` : 'Đang phát')
-      : 'Âm thanh nền giúp dễ ngủ';
-  const tiles = A.SOUNDS.map((x, i) => {
-    const on = A.isOn(x.id), loading = A.playing && A.isLoading(x.id), v = Math.round(cfg.vols[x.id] * 100);
-    const sub = loading ? 'Đang chuẩn bị…' : x.id === 'lofi' && song && A.playing ? `${esc(song.title)} · ${esc(song.artist)}` : x.desc;
-    return `<div class="snd ${on ? 'on' : ''} ${loading ? 'loading' : ''}" data-key="snd-${x.id}" style="animation-delay:${i * 30}ms">
-      <button class="snd-tog" data-snd="${x.id}" aria-pressed="${on}" title="${on ? 'Tắt' : 'Bật'} ${x.name}"><span class="ring-i">${Icons[x.id]}</span></button>
-      <div class="snd-txt"><b>${x.name}</b><p>${sub}</p></div>
-      ${x.id === 'lofi' && on && A.playing ? `<button class="icon-btn" data-key="skip" data-do="snd-skip" title="Bài khác" ${loading ? 'disabled' : ''}>${Icons.skip}</button>` : '<span></span>'}
-      <input type="range" class="vol" data-vol="${x.id}" min="0" max="100" value="${v}" style="--v:${v}%" aria-label="Âm lượng ${x.name}">
+// ---------- Âm thanh nền (2-pane layout, không blur/pill, đồng nhất kích thước, 60 FPS) ----------
+const FADES = [0, 5, 10, 20, 30];
+const SND_TABS = [
+  ['sounds', 'Âm thanh'],
+  ['mixes', 'Bộ mix'],
+  ['playlist', 'Playlist'],
+  ['youtube', 'YouTube'],
+];
+const SND_FILTERS = [
+  ['all', 'Tất cả'],
+  ['rain', 'Mưa'],
+  ['nature', 'Thiên nhiên'],
+  ['animals', 'Đêm'],
+  ['noise', 'Ồn & Não'],
+  ['places', 'Không gian'],
+];
+const PRIORITY_IDS = ['rain', 'thunder', 'wind', 'crickets', 'lofi', 'brown'];
+let sndTab = 'sounds';
+let sndFilter = 'all';
+let sndPage = 0;
+let mixPage = 0;
+let playlistFilter = 'all';
+let playlistPage = 0;
+let focusedSnd = 'rain';
+let savingMix = false;
+let ytStatus = 'closed';
+
+const sndPerPage = () => (window.innerHeight <= 620 ? 5 : 6);
+
+function paginateSlice(items, page, per) {
+  const count = Math.max(1, Math.ceil(items.length / per));
+  const safe = Math.max(0, Math.min(page, count - 1));
+  return { rows: items.slice(safe * per, (safe + 1) * per), page: safe, count, start: safe * per };
+}
+
+function pagerHtml(attr, pg, label) {
+  return `<div class="pl-foot">
+    <span class="num">${label}</span>
+    ${pg.count > 1 ? `<div class="pager"><button class="icon-btn" ${attr}="-1" ${pg.page ? '' : 'disabled'} title="Trang trước">${Icons.chevL}</button>
+      <span class="num">${pg.page + 1}/${pg.count}</span>
+      <button class="icon-btn" ${attr}="1" ${pg.page < pg.count - 1 ? '' : 'disabled'} title="Trang sau">${Icons.chevR}</button></div>` : ''}
+  </div>`;
+}
+
+function quickSoundsHtml() {
+  const A = Ambient;
+  const presets = A.presets.slice(0, 3).map((p) => {
+    const on = A.activePresetId === p.id && A.playing;
+    return `<button class="chip ${on ? 'on' : ''}" data-apreset="${p.id}">${esc(p.name)}</button>`;
+  }).join('');
+  return `<div id="side-sounds" class="quick-snd">
+    <div class="label">Âm thanh đi ngủ</div>
+    <div class="chips">
+      <button class="chip ${A.playing ? 'on' : ''}" data-do="snd-play">${A.playing ? 'Tạm dừng' : 'Phát nhạc'}</button>
+      ${presets}
+      <button class="chip" data-view="sounds">Tất cả</button>
+    </div>
+  </div>`;
+}
+
+function soundsPaneHtml(A, song) {
+  const ordered = [...A.channels].sort((a, b) => {
+    const ia = PRIORITY_IDS.indexOf(a.id), ib = PRIORITY_IDS.indexOf(b.id);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
+  const list = sndFilter === 'all' ? ordered : ordered.filter((c) => c.category === sndFilter);
+  const pg = paginateSlice(list, sndPage, sndPerPage());
+  sndPage = pg.page;
+
+  const filtersHtml = SND_FILTERS.map(([id, label]) =>
+    `<button class="sub-tab ${sndFilter === id ? 'on' : ''}" data-sfilter="${id}">${label}</button>`
+  ).join('');
+
+  const rows = pg.rows.map((x) => {
+    const on = x.active, lit = on && A.playing, loading = A.playing && x.loading, v = Math.round(x.volume * 100);
+    const sub = loading ? 'Đang tải…' : x.id === 'lofi' && song && on ? esc(song.title) : x.desc;
+    const ico = Icons[x.id] || Icons[x.category] || Icons.sound;
+    return `<div class="snd-row ${on ? 'on' : ''} ${lit ? 'lit' : ''} ${loading ? 'loading' : ''}" data-key="snd-${x.id}">
+      <button class="snd-row-btn" data-snd="${x.id}" aria-pressed="${on}" title="${on ? 'Tắt' : 'Bật'} ${esc(x.name)}">
+        <span class="snd-thumb" style="--art:url('../img/${x.art || x.id}.jpg')">${ico}</span>
+        <span class="snd-meta"><b>${esc(x.name)}</b><small>${sub}</small></span>
+      </button>
+      <button class="icon-btn snd-swell ${x.swell ? 'on' : ''}" data-swell="${x.id}" title="Dao động âm lượng (Swell)">${Icons.wave}</button>
+      <input type="range" class="vol snd-vol" data-vol="${x.id}" min="0" max="100" value="${v}" style="--v:${v}%" aria-label="Âm lượng ${esc(x.name)}">
     </div>`;
   }).join('');
-  const mv = Math.round(cfg.master * 100);
+
+  return `<div class="snd-subbar">${filtersHtml}</div>
+    <div class="snd-list">${rows}</div>
+    ${pagerHtml('data-snd-page', pg, `${list.length} kênh`)}`;
+}
+
+function mixesPaneHtml(A) {
+  const nameOf = (id) => A.channels.find((c) => c.id === id)?.name || id;
+  const customMixes = (st && st.mixPresets) || [];
+  const all = [
+    ...A.presets.map((p) => ({ ...p, custom: false })),
+    ...customMixes.map((m) => ({ ...m, custom: true })),
+  ];
+  const pg = paginateSlice(all, mixPage, sndPerPage());
+  mixPage = pg.page;
+
+  const rows = pg.rows.map((m, idx) => {
+    const on = A.activePresetId === m.id;
+    const desc = m.channels.map(([id]) => nameOf(id)).join(' · ');
+    return `<div class="mix-row ${on ? 'on' : ''} ${on && A.playing ? 'lit' : ''}">
+      <button class="mix-row-btn" ${m.custom ? `data-cmix="${m.id}"` : `data-apreset="${m.id}"`}>
+        <span class="pl-num num">${on && A.playing ? '▶' : m.custom ? '★' : pg.start + idx + 1}</span>
+        <span class="pl-meta"><b>${esc(m.name)}</b><small>${esc(desc)}</small></span>
+      </button>
+      ${m.custom ? `<button class="cmix-del" data-del-cmix="${m.id}" title="Xoá bộ mix">×</button>` : ''}
+    </div>`;
+  }).join('');
+
+  const saveCtl = savingMix
+    ? `<span class="mix-save"><input id="mix-name" class="inline-input mix-in" placeholder="Tên bộ mix" maxlength="28"><button class="snd-preset on" data-do="mix-save">Lưu</button><button class="snd-preset" data-do="mix-cancel">Huỷ</button></span>`
+    : `<button class="snd-preset on" data-do="mix-new" title="Lưu các âm thanh đang bật thành bộ mix mới">+ Lưu mix hiện tại</button>`;
+
+  return `<div class="snd-subbar">${saveCtl}</div>
+    <div class="snd-list">${rows}</div>
+    ${pagerHtml('data-mix-page', pg, `${all.length} bộ mix`)}`;
+}
+
+function playlistPaneHtml(A, song) {
+  const all = A.lofiTracks;
+  const list = playlistFilter === 'custom' ? all.filter((t) => t.custom) : all;
+  const pg = paginateSlice(list, playlistPage, sndPerPage());
+  playlistPage = pg.page;
+  const lofiOn = A.channels.some((c) => c.id === 'lofi' && c.active);
+
+  const rows = pg.rows.map((t, idx) => {
+    const current = song && song.id === t.id;
+    const playingNow = current && lofiOn && A.playing;
+    return `<div class="pl-row ${current ? 'on' : ''} ${playingNow ? 'lit' : ''}" data-key="pl-${esc(t.id)}">
+      <button class="pl-row-btn" data-track="${esc(t.id)}">
+        <span class="pl-num num">${playingNow ? '▶' : pg.start + idx + 1}</span>
+        <span class="pl-meta"><b>${esc(t.title)}</b><small>${esc(t.artist)}</small></span>
+      </button>
+      ${t.custom ? `<button class="cmix-del" data-del-track="${esc(t.id)}" title="Gỡ bài khỏi danh sách">×</button>` : ''}
+    </div>`;
+  }).join('');
+
+  return `<div class="snd-subbar pl-actions">
+      <div class="pl-filter">
+        <button class="sub-tab ${playlistFilter === 'all' ? 'on' : ''}" data-pl-filter="all">Tất cả (${all.length})</button>
+        <button class="sub-tab ${playlistFilter === 'custom' ? 'on' : ''}" data-pl-filter="custom">Nhạc của bạn</button>
+      </div>
+      <div class="pl-add">
+        <button class="sub-tab" data-do="snd-files" title="Chọn các tệp nhạc (.mp3/.ogg/.wav)">+ Thêm bài</button>
+        <button class="sub-tab" data-do="snd-folder" title="Thêm cả thư mục nhạc">+ Thư mục</button>
+      </div>
+    </div>
+    <div class="snd-list">${rows || '<div class="empty">Chưa có bài nhạc nào. Bấm "+ Thêm bài" hoặc "+ Thư mục" để nạp nhạc của bạn.</div>'}</div>
+    ${pagerHtml('data-pl-page', pg, `${list.length} bài`)}`;
+}
+
+function youtubePaneHtml() {
+  const statusTxt = ytStatus === 'visible'
+    ? 'Cửa sổ YouTube đang mở — bạn có thể đăng nhập và chọn playlist trực tiếp.'
+    : ytStatus === 'hidden'
+      ? 'Đang phát nền (đã ẩn cửa sổ) — có thể trộn cùng tiếng mưa, gió, dế bên cạnh.'
+      : 'Chưa mở — mở YouTube hoặc YouTube Music để tự đăng nhập và phát nhạc nền.';
+
+  return `<div class="yt-pane">
+    <div class="yt-status"><i class="yt-dot ${ytStatus}"></i><span>${statusTxt}</span></div>
+    <div class="yt-actions">
+      <button class="btn primary" data-yt="music">${Icons.lofi} Mở YouTube Music</button>
+      <button class="btn" data-yt="youtube">${Icons.play} Mở YouTube</button>
+      <button class="btn ghost" data-yt="hide" ${ytStatus === 'visible' ? '' : 'disabled'}>Ẩn cửa sổ (chỉ nghe tiếng)</button>
+      <button class="btn ghost" data-yt="close" ${ytStatus === 'closed' ? 'disabled' : ''}>Dừng &amp; đóng YouTube</button>
+    </div>
+    <p class="note">Mẹo: Khi bấm nút đóng (×) trên cửa sổ YouTube, cửa sổ sẽ tự ẩn để giữ âm thanh chạy nền. Để tắt hẳn tiếng YouTube, bấm "Dừng &amp; đóng YouTube".</p>
+  </div>`;
+}
+
+function viewSounds() {
+  const A = Ambient, song = A.song(), activeChannels = A.channels.filter((c) => c.active);
+  const activeCount = activeChannels.length;
+  const stageChannel = A.channels.find((c) => c.id === focusedSnd && c.active)
+    || A.channels.find((c) => c.id === focusedSnd)
+    || activeChannels[0]
+    || A.channels[0]
+    || { id: 'rain', name: 'Mưa nhẹ', desc: 'Hạt mưa rơi đều bên hiên', category: 'rain', art: 'rain', volume: 0.75, pan: 0, swell: false };
+
+  const status = A.error ? `<span class="err">${esc(A.error)}</span>`
+    : A.stoppedByTimer ? 'Đã tắt theo hẹn giờ'
+      : A.playing ? (A.fading ? `Tắt dần · ${Math.round(A.fadeLevel * 100)}%` : `Đang phát · ${activeCount} kênh`)
+        : activeCount ? `Tạm dừng · ${activeCount} kênh` : 'Sẵn sàng';
+
+  const tabsHtml = SND_TABS.map(([id, label]) =>
+    `<button class="snd-tab ${sndTab === id ? 'on' : ''}" data-stab-snd="${id}">${label}</button>`
+  ).join('');
+
+  let leftBody = '';
+  if (sndTab === 'mixes') leftBody = mixesPaneHtml(A);
+  else if (sndTab === 'playlist') leftBody = playlistPaneHtml(A, song);
+  else if (sndTab === 'youtube') leftBody = youtubePaneHtml();
+  else leftBody = soundsPaneHtml(A, song);
+
+  const mv = Math.round(A.master * 100);
+  const stageIco = Icons[stageChannel.id] || Icons[stageChannel.category] || Icons.sound;
+  const stageTitle = stageChannel.id === 'lofi' && song ? song.title : stageChannel.name;
+  const stageSub = stageChannel.id === 'lofi' && song ? `${song.artist} · Nhạc Lo-Fi` : stageChannel.desc;
+  const fadeLabel = A.fade ? `Tắt dần ${A.fade}p cuối` : 'Không tắt dần';
+  const panPct = Math.round((stageChannel.pan || 0) * 100);
+  const panLabel = panPct === 0 ? 'Giữa' : panPct < 0 ? `Trái ${Math.abs(panPct)}%` : `Phải ${panPct}%`;
+  const seekPct = Math.round(A.lofiProgress * 100);
+
+  const subCtl = stageChannel.id === 'lofi'
+    ? `<div class="stage-subctl">
+        <input type="range" class="vol" data-seek min="0" max="100" value="${seekPct}" style="--v:${seekPct}%" aria-label="Tua bài nhạc">
+        <div class="stage-vol-meta num"><span>Tua bài</span><span>${seekPct}%</span></div>
+      </div>`
+    : `<div class="stage-subctl">
+        <input type="range" class="vol pan-slider" data-pan="${stageChannel.id}" min="-100" max="100" value="${panPct}" style="--v:${(panPct + 100) / 2}%" aria-label="Cân bằng Trái/Phải">
+        <div class="stage-vol-meta num"><span>Không gian: ${panLabel}</span><button class="stage-fade-btn ${stageChannel.swell ? 'on' : ''}" data-swell="${stageChannel.id}">Swell ${stageChannel.swell ? 'Bật' : 'Tắt'}</button></div>
+      </div>`;
+
   return `<section class="view sounds" data-key="v-sounds">
-    <div class="head"><div><div class="eyebrow">${status}</div><h1>Âm thanh</h1></div>
-      <div class="mixer"><span class="mx-ico">${Icons.volume}</span><input type="range" class="vol" data-master min="0" max="100" value="${mv}" style="--v:${mv}%" aria-label="Âm lượng chung">
-        <button class="btn ${A.playing ? '' : 'primary'}" data-key="snd-play" data-do="snd-play">${A.playing ? `${Icons.pause} Tạm dừng` : `${Icons.play} Phát`}</button></div></div>
-    <div class="snd-grid">${tiles}</div>
-    <div class="foot"><span class="label">Nhỏ dần trước khi hẹn giờ kết thúc</span>
-      <div class="seg" data-morph-keep="style">${FADES.map(([m, l]) => `<button class="${cfg.fade === m ? 'on' : ''}" data-fade="${m}">${l}</button>`).join('')}</div>
-      <p class="note">Âm thanh tắt hẳn khi hẹn giờ thực hiện hành động.</p></div>
+    <div class="snd-topbar">
+      <div class="snd-tabs">${tabsHtml}</div>
+      <div class="snd-tools">
+        <button class="snd-tool" data-do="snd-shuffle" title="Trộn ngẫu nhiên 3 âm thanh">${Icons.shuffle}<span>Trộn</span></button>
+        <button class="snd-tool" data-do="snd-clear" title="Tắt hết âm thanh">${Icons.trash}<span>Tắt hết</span></button>
+        <span class="snd-count num">${status}</span>
+      </div>
+    </div>
+    <div class="snd-split">
+      <div class="snd-list-pane">${leftBody}</div>
+      <div class="snd-stage">
+        <div class="stage-art ${A.playing && activeCount ? 'lit' : ''}" style="--art:url('../img/${stageChannel.art || stageChannel.id}.jpg')">
+          <span class="stage-ico">${stageIco}</span>
+        </div>
+        <div class="stage-info">
+          <b>${esc(stageTitle)}</b>
+          <p>${esc(stageSub)}</p>
+        </div>
+        ${subCtl}
+        <div class="stage-vol">
+          <input type="range" class="vol" data-master min="0" max="100" value="${mv}" style="--v:${mv}%" aria-label="Âm lượng chung">
+          <div class="stage-vol-meta num"><span>Âm lượng ${mv}%</span><button class="stage-fade-btn" data-fade-cycle title="Tự động giảm dần âm lượng trước khi hẹn giờ tắt máy/ngủ kết thúc">${fadeLabel}</button></div>
+        </div>
+        <div class="stage-ctl">
+          <button class="icon-btn" data-fade-cycle title="Đổi thời gian tắt dần khi hẹn giờ (${fadeLabel})">${Icons.repeat}</button>
+          <button class="icon-btn" data-do="snd-prev" title="Bài trước">${Icons.prev}</button>
+          <button class="stage-play ${A.playing ? 'lit' : ''}" data-key="snd-play" data-do="snd-play" aria-label="${A.playing ? 'Tạm dừng' : 'Phát'}">${A.playing ? Icons.pause : Icons.play}</button>
+          <button class="icon-btn" data-key="skip" data-do="snd-skip" title="Bài tiếp theo">${Icons.skip}</button>
+          <button class="icon-btn" data-do="snd-shuffle" title="Trộn ngẫu nhiên">${Icons.shuffle}</button>
+        </div>
+      </div>
+    </div>
   </section>`;
 }
 
@@ -818,7 +1044,26 @@ document.addEventListener('click', async (e) => {
   if (ds.chip) { const v = +ds.chip; if (dialVal() === v && !draft.countdown.s) return; draft.countdown = { h: Math.floor(v / 60), m: v % 60, s: 0 }; saveDraft(); return render(); }
   if (ds.chipAt) { const current = `${pad(draft.at.h)}:${pad(draft.at.m)}`; if (current === ds.chipAt) return; const [h, m] = ds.chipAt.split(':').map(Number); draft.at = { h, m }; saveDraft(); return render(); }
   if (ds.post) return sleepy.postpone(+ds.post);
-  if (ds.snd) return Ambient.toggle(ds.snd);
+  if (ds.snd) { focusedSnd = ds.snd; return Ambient.toggle(ds.snd); }
+  if (ds.swell) { focusedSnd = ds.swell; return Ambient.toggleSwell(ds.swell); }
+  if (ds.track) { focusedSnd = 'lofi'; return Ambient.selectSong(ds.track); }
+  if (ds.delTrack) { e.stopPropagation(); return Ambient.removeCustomTrack(ds.delTrack); }
+  if (ds.sndPage) { sndPage += +ds.sndPage; return render(); }
+  if (ds.mixPage) { mixPage += +ds.mixPage; return render(); }
+  if (ds.plPage) { playlistPage += +ds.plPage; return render(); }
+  if (ds.stabSnd) { sndTab = ds.stabSnd; if (sndTab === 'youtube') Ambient.ytStatus().then((s) => { ytStatus = s; render(); }); return render(); }
+  if (ds.sfilter) { sndFilter = ds.sfilter; sndPage = 0; return render(); }
+  if (ds.plFilter) { playlistFilter = ds.plFilter; playlistPage = 0; return render(); }
+  if (ds.apreset) return Ambient.applyPreset(ds.apreset);
+  if (ds.cmix) return Ambient.applyCustomMix(ds.cmix);
+  if (ds.delCmix) return Ambient.deleteMix(ds.delCmix);
+  if (ds.yt) {
+    try {
+      ytStatus = ds.yt === 'hide' ? await Ambient.ytHide() : ds.yt === 'close' ? await Ambient.ytClose() : await Ambient.ytOpen(ds.yt);
+      return render();
+    } catch (err) { return toast(String(err), true); }
+  }
+  if ('fadeCycle' in ds) { const i = FADES.indexOf(Ambient.fade); return Ambient.setFade(FADES[(i + 1) % FADES.length]); }
   if (ds.fade) return Ambient.setFade(+ds.fade);
   if (ds.stab) { setTab = ds.stab; return render(); }
   if (ds.page) { const [k, d] = ds.page.split(':'); pages[k].page += +d; return render(); }
@@ -847,7 +1092,36 @@ document.addEventListener('click', async (e) => {
     case 'preset-save': return savePreset();
     case 'hist-clear': return sleepy.clearHistory();
     case 'snd-play': return Ambient.togglePlay();
-    case 'snd-skip': return Ambient.skipSong();
+    case 'snd-skip': focusedSnd = 'lofi'; return Ambient.skipSong();
+    case 'snd-prev': focusedSnd = 'lofi'; return Ambient.prevSong();
+    case 'snd-shuffle': return Ambient.shuffle();
+    case 'snd-clear': return Ambient.clearAll();
+    case 'snd-files': {
+      try {
+        const added = await Ambient.pickFiles();
+        if (added) { sndTab = 'playlist'; playlistFilter = 'custom'; focusedSnd = 'lofi'; render(); toast(`Đã thêm ${added} bài nhạc của bạn.`); }
+      } catch (e) { toast(String(e), true); }
+      return;
+    }
+    case 'snd-folder': {
+      try {
+        const added = await Ambient.pickFolder();
+        if (added) { sndTab = 'playlist'; playlistFilter = 'custom'; focusedSnd = 'lofi'; render(); toast(`Đã thêm ${added} bài nhạc từ thư mục.`); }
+      } catch (e) { toast(String(e), true); }
+      return;
+    }
+    case 'mix-new': savingMix = true; render(); $('#mix-name')?.focus(); return;
+    case 'mix-cancel': savingMix = false; return render();
+    case 'mix-save': {
+      const name = $('#mix-name')?.value.trim();
+      try {
+        await Ambient.saveMix(name || '');
+        savingMix = false;
+        render();
+        toast(`Đã lưu bộ mix "${name}".`);
+      } catch (e) { toast(String(e), true); }
+      return;
+    }
     case 'sched-add': {
       if (!sched.days.length) return toast('Vui lòng chọn ít nhất một ngày.', true);
       const id = Math.random().toString(16).slice(2, 12);
@@ -881,9 +1155,16 @@ const fmtDial = (input, v) => (input.dataset.dial === 'countdown.h' ? String(v) 
 function dialChanged(opts) { if (view === 'timer') { renderDial(opts); updateSummary(); syncChips(); } }
 document.addEventListener('input', (e) => {
   const t = e.target;
-  if (t.dataset.vol || 'master' in t.dataset) {
+  if (t.dataset.vol || 'master' in t.dataset || t.dataset.pan || 'seek' in t.dataset) {
+    if (t.dataset.pan) {
+      t.style.setProperty('--v', `${(+t.value + 100) / 2}%`);
+      Ambient.setPan(t.dataset.pan, +t.value / 100);
+      return;
+    }
     t.style.setProperty('--v', `${t.value}%`);
-    if (t.dataset.vol) Ambient.setVol(t.dataset.vol, t.value / 100); else Ambient.setMaster(t.value / 100);
+    if (t.dataset.vol) Ambient.setVol(t.dataset.vol, t.value / 100);
+    else if ('seek' in t.dataset) Ambient.seekSong(t.value / 100);
+    else Ambient.setMaster(t.value / 100);
     return;
   }
   if (t.dataset.dial) { t.value = t.value.replace(/\D/g, '').slice(0, 2); setDial(t, parseInt(t.value, 10)); dialChanged(); }
@@ -922,6 +1203,7 @@ document.addEventListener('keydown', (e) => {
   if (t.dataset?.dial && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); stepDial(t, e.key === 'ArrowUp' ? 1 : -1); return; }
   if (t.dataset?.renameInput) { if (e.key === 'Enter') t.blur(); if (e.key === 'Escape') { renaming = null; render(); } return; }
   if (t.id === 'preset-name') { if (e.key === 'Enter') savePreset(); if (e.key === 'Escape') { savingPreset = false; render(); } return; }
+  if (t.id === 'mix-name') { if (e.key === 'Enter') $('[data-do="mix-save"]')?.click(); if (e.key === 'Escape') { savingMix = false; render(); } return; }
   if (e.ctrlKey && /^[1-6]$/.test(e.key)) { view = VIEWS[+e.key - 1][0]; savingPreset = false; render(); return; }
   if (e.key === 'Enter' && view === 'timer' && !snap?.job && t.tagName !== 'BUTTON') start(draft.action, trigger(), 'manual');
 });
@@ -945,7 +1227,16 @@ function checkProc() {
   render();
   if (draft.type === 'process') loadProcs();
   Ambient.syncJob(snap.job);
-  Ambient.onChange(() => { if (!st) return; if (view === 'sounds') render(); else renderRail(); syncIndicators(); });
+  Ambient.onChange(() => {
+    if (!st) return;
+    if (view === 'sounds') render();
+    else {
+      renderRail();
+      syncIndicators();
+      const qs = $('#side-sounds');
+      if (qs) qs.outerHTML = quickSoundsHtml();
+    }
+  });
 
   sleepy.onState((s) => {
     const hadJob = !!snap?.job;

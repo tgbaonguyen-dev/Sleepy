@@ -2,47 +2,56 @@
 
 /* Sleepy — "Đêm yên tĩnh": nền trời đêm, ánh trăng làm màu nhấn, ánh đèn cam cho phút cuối. */
 :root {
-  --bg0: #070B18;
-  --bg1: #0D1430;
+  --bg0: #0A0F22;
+  --bg1: #0A0F22;
   --glow-pos: 85% -10%;
-  --surface: rgba(255, 255, 255, .035);
-  --surface-2: rgba(255, 255, 255, .065);
-  --surface-3: rgba(255, 255, 255, .1);
-  --line: rgba(255, 255, 255, .075);
-  --line-2: rgba(255, 255, 255, .14);
+  --surface: #10162C;
+  --surface-2: #161D38;
+  --surface-3: #1F2748;
+  --line: #242C4C;
+  --line-2: #343E66;
   --ink: #E6EAF7;
   --ink-2: #A9B2D3;
   --ink-3: #8A94B8;
   --ink-disabled: #5A6386;
   --moon: #B7C5FF;
-  --moon-2: #7E92F6;
+  --moon-2: #C9D4FF;
   --moon-ink: #0A1030;
   --focus: #B7C5FF;
   --lamp: #FFB27A;
   --danger: #FF7A88;
   --ok: #7FDCAA;
-  --halo: rgba(126, 146, 246, .28);
-  --shadow: 0 24px 60px -24px rgba(0, 0, 0, .7);
+  --halo: rgba(183, 197, 255, .2);
+  --shadow: 0 8px 24px -12px rgba(0, 0, 0, .6);
   --stars: 1;
-  --sky-glow: rgba(110, 128, 230, .16);
+  --sky-glow: transparent;
   --font: 'Be Vietnam Pro', 'Ubuntu Sans', 'Cantarell', system-ui, sans-serif;
-  --mono: 'Ubuntu Sans Mono', 'Ubuntu Mono', 'JetBrains Mono', ui-monospace, monospace;
+  --mono: 'Ubuntu Sans Mono', 'JetBrains Mono', ui-monospace, monospace;
   --ease: cubic-bezier(.22, .9, .25, 1);
-  /* Bố cục cố định theo khung cửa sổ: mọi kích thước co giãn theo vw/vh, không bao giờ cuộn. */
-  --title-h: 40px;
-  --rail-w: 164px;
-  --pad-x: clamp(16px, 3vw, 44px);
-  --pad-y: clamp(10px, 2.2vh, 26px);
-  --content-max: 1240px; /* cửa sổ rất rộng (thu nhỏ): nội dung dồn vào giữa thay vì kéo dãn hết bề ngang */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+  /* Spacing (4px grid) */
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px; --s-7: 48px;
+  /* Concentric radius */
+  --r-xs: 4px; --r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-full: 999px;
+  /* Type scale */
+  --fs-micro: 11px; --fs-caption: 12px; --fs-control: 13px; --fs-body: 14px;
+  --fs-body-lg: 15px; --fs-h2: 15px; --fs-h1: 22px; --fs-time-lg: 32px;
+  --title-h: 36px;
+  --rail-w: 64px;
+  --pad-x: var(--s-6);
+  --pad-y: var(--s-4);
+  --content-max: 1040px;
   color-scheme: dark;
 }
 :root[data-theme='light'] {
   --bg0: #FFFDFA;
   --bg1: #FFFDFA;
   --sky-glow: transparent;
-  --surface: #FBF7F2;
-  --surface-2: #F4EDE5;
-  --surface-3: #ECE2D7;
+  --surface: #F8F2EA;
+  --surface-2: #FFFFFF;
+  --surface-3: #F2EAE0;
   --line: #E8DED3;
   --line-2: #CDBEAE;
   --ink: #2B2420;
@@ -56,8 +65,8 @@
   --lamp: #B4610A;
   --danger: #C23A30;
   --ok: #2F7A47;
-  --halo: rgba(224, 85, 59, .12);
-  --shadow: 0 8px 24px -8px rgba(80, 50, 30, .2);
+  --halo: rgba(201, 67, 43, .14);
+  --shadow: 0 8px 24px -12px rgba(80, 50, 30, .25);
   --stars: 0;
   color-scheme: light;
 }
@@ -216,8 +225,8 @@ html.dragging-dial, html.dragging-dial * { cursor: grabbing !important; -webkit-
 .time-in { display: flex; align-items: baseline; gap: 2px; }
 .time-in input { width: 1.3em; font-size: 60px; font-weight: 300; letter-spacing: -.03em; line-height: 1; background: transparent; border: 0; text-align: center; border-radius: 12px; font-variant-numeric: tabular-nums; caret-color: var(--moon); }
 .time-in input:hover { background: var(--surface); }
-.time-in input:focus { outline: none; background: var(--surface-2); }
-.time-in .sep { font-size: 54px; font-weight: 200; color: var(--ink-3); }
+.time-in input:focus { background: var(--surface-2); }
+.time-in .sep { font-size: 54px; font-weight: 300; color: var(--ink-3); }
 .time-in .unit { font-size: 13px; color: var(--ink-3); margin: 0 6px 0 2px; }
 
 .side { display: flex; flex-direction: column; justify-content: safe center; gap: 18px; min-height: 0; }
@@ -255,7 +264,7 @@ html.dragging-dial, html.dragging-dial * { cursor: grabbing !important; -webkit-
 .orb > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .orb .center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .orb .icon { width: 6.5cqw; height: 6.5cqw; color: var(--moon); margin-bottom: 2.5cqw; }
-.orb .big { font-size: 20cqw; font-weight: 200; letter-spacing: -.035em; line-height: 1; transition: color .6s; }
+.orb .big { font-size: 20cqw; font-weight: 300; letter-spacing: -.03em; line-height: 1; transition: color .6s; }
 .orb .big.long { font-size: 12cqw; }
 .orb .big small { font-size: .32em; color: var(--ink-3); font-weight: 400; letter-spacing: -.01em; margin-left: 4px; }
 .orb .what { font-size: clamp(12px, 3.6cqw, 15px); color: var(--ink-2); margin-top: 3cqw; }
@@ -435,45 +444,43 @@ html.dragging-dial, html.dragging-dial * { cursor: grabbing !important; -webkit-
 .dial .time-in .tu span { font-size: clamp(10.5px, 3.6cqw, 12.5px); }
 
 /* ---------- Nút đẹp hơn ---------- */
-.btn { border-radius: 12px; padding: 11px 18px; font-weight: 600; letter-spacing: -.005em;
-  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.09);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 1px 2px rgba(0,0,0,.25);
-  transition: background .2s, transform .12s var(--ease), box-shadow .2s, border-color .2s; }
-.btn:hover { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.16); transform: translateY(-1px); }
-.btn:active { transform: translateY(0) scale(.98); }
-.btn.primary { border-radius: 14px; background: linear-gradient(180deg, #C9D3FF, var(--moon-2)); color: var(--moon-ink);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.55), 0 10px 26px -10px var(--moon-2), 0 0 0 1px rgba(126,146,246,.45); }
-.btn.primary:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,.6), 0 14px 32px -10px var(--moon-2), 0 0 0 1px rgba(126,146,246,.6); }
-.btn.big { padding: 14px 26px; font-size: 15px; }
-.btn.ghost { box-shadow: none; }
-.btn.danger { color: var(--ink); }
-.btn.danger:hover { background: color-mix(in srgb, var(--danger) 20%, transparent); border-color: color-mix(in srgb, var(--danger) 45%, transparent); color: var(--danger); }
-.bgroup { display: inline-flex; align-items: center; border-radius: 12px; padding: 3px; gap: 2px;
-  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.09); box-shadow: inset 0 1px 0 rgba(255,255,255,.06); }
-.bgroup > span { font-size: 12.5px; color: var(--ink-3); padding: 0 8px 0 10px; }
-.bgroup button { padding: 8px 13px; border-radius: 9px; font-weight: 600; font-size: 13.5px; color: var(--ink-2); transition: all .18s var(--ease); }
-.bgroup button:hover { background: rgba(255,255,255,.1); color: var(--ink); }
-.bgroup button:active { transform: scale(.96); }
-.chip { transition: all .18s var(--ease); }
-.chip:hover { transform: translateY(-1px); }
+.btn { border-radius: var(--r-md); padding: 8px 14px; font-size: var(--fs-control); font-weight: 500;
+  background: var(--surface-2); border: 1px solid var(--line-2); box-shadow: none;
+  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease); }
+.btn:hover { background: var(--surface-3); border-color: var(--line-2); transform: none; }
+.btn:active { transform: scale(.98); }
+.btn.primary { border-radius: var(--r-md); background: var(--moon); color: var(--moon-ink); border: 0; box-shadow: none; font-weight: 600; }
+.btn.primary:hover { background: var(--moon-2); box-shadow: none; }
+.btn.big { padding: 10px 20px; font-size: var(--fs-body); font-weight: 600; }
+.btn.ghost { background: transparent; border-color: transparent; box-shadow: none; color: var(--ink-2); }
+.btn.ghost:hover { background: var(--surface-2); color: var(--ink); }
+.btn.danger { color: var(--danger); }
+.btn.danger:hover { background: color-mix(in srgb, var(--danger) 16%, transparent); border-color: color-mix(in srgb, var(--danger) 40%, transparent); color: var(--danger); }
+.bgroup { display: inline-flex; align-items: center; border-radius: var(--r-lg); padding: 4px; gap: 4px;
+  background: var(--surface); border: 1px solid var(--line); box-shadow: none; }
+.bgroup > span { font-size: var(--fs-caption); color: var(--ink-3); padding: 0 8px 0 10px; }
+.bgroup button { padding: 6px 12px; border-radius: var(--r-md); font-weight: 500; font-size: var(--fs-control); color: var(--ink-2); transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
+.bgroup button:hover { background: var(--surface-3); color: var(--ink); }
+.bgroup button:active { transform: scale(.98); }
+.chip { border-radius: var(--r-md); transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease); }
+.chip:hover { transform: none; }
 
-[data-theme='light'] .btn { border-radius: 12px; background: #FFFFFF; border: 1px solid var(--line-2); color: var(--ink);
-  box-shadow: 0 1px 0 rgba(80,50,30,.04), 0 1px 3px rgba(80,50,30,.08); }
-[data-theme='light'] .btn:hover { background: #FFFFFF; border-color: #D9C8B7; box-shadow: 0 4px 12px -4px rgba(80,50,30,.18); }
-[data-theme='light'] .btn.primary { border-radius: 8px; border: 0; color: #fff; background: var(--moon); box-shadow: none; }
+[data-theme='light'] .btn { border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--line-2); color: var(--ink); box-shadow: none; }
+[data-theme='light'] .btn:hover { background: var(--surface-3); border-color: var(--line-2); box-shadow: none; }
+[data-theme='light'] .btn.primary { border-radius: var(--r-md); border: 0; color: #fff; background: var(--moon); box-shadow: none; }
 [data-theme='light'] .btn.primary:hover { background: var(--moon-2); box-shadow: none; }
-[data-theme='light'] .btn.ghost { background: none; border-color: transparent; box-shadow: none; color: var(--ink-2); }
-[data-theme='light'] .btn.ghost:hover { background: var(--surface-2); color: var(--ink); }
-[data-theme='light'] .btn.danger:hover { background: #FCE7DC; border-color: #F3CDBA; color: var(--danger); }
-[data-theme='light'] .bgroup { background: #FFFFFF; border-color: var(--line-2); box-shadow: 0 1px 3px rgba(80,50,30,.08); }
-[data-theme='light'] .bgroup button:hover { background: var(--surface-2); }
-[data-theme='light'] .chip { border-radius: 10px; }
-[data-theme='light'] .chip:hover { background: #FFFFFF; border-color: #D9C8B7; box-shadow: 0 3px 8px -4px rgba(80,50,30,.2); }
-[data-theme='light'] .act.on .ring-i { background: linear-gradient(180deg, #EC6E4F, #D8462D); box-shadow: 0 0 0 4px #FCE7DC, 0 8px 18px -8px rgba(216,70,45,.7); }
-[data-theme='light'] .seg { border-radius: 12px; }
-[data-theme='light'] .seg button { border-radius: 9px; }
-[data-theme='light'] .seg button.on { box-shadow: 0 1px 3px rgba(80,50,30,.15); }
-[data-theme='light'] .handle { stroke: #D8462D; }
+[data-theme='light'] .btn.ghost { background: transparent; border-color: transparent; box-shadow: none; color: var(--ink-2); }
+[data-theme='light'] .btn.ghost:hover { background: var(--surface-3); color: var(--ink); }
+[data-theme='light'] .btn.danger:hover { background: color-mix(in srgb, var(--danger) 12%, transparent); border-color: color-mix(in srgb, var(--danger) 35%, transparent); color: var(--danger); }
+[data-theme='light'] .bgroup { background: var(--surface); border-color: var(--line); box-shadow: none; }
+[data-theme='light'] .bgroup button:hover { background: var(--surface-3); }
+[data-theme='light'] .chip { border-radius: var(--r-md); }
+[data-theme='light'] .chip:hover { background: var(--surface-3); border-color: var(--line-2); box-shadow: none; }
+[data-theme='light'] .act.on .ring-i { background: var(--moon); box-shadow: none; }
+[data-theme='light'] .seg { border-radius: var(--r-lg); }
+[data-theme='light'] .seg button { border-radius: var(--r-md); }
+[data-theme='light'] .seg button.on { box-shadow: none; }
+[data-theme='light'] .handle { stroke: var(--moon); }
 
 /* ---------- Mặt trời / mặt trăng ---------- */
 .cel-bg { fill: var(--bg0); }
@@ -511,27 +518,21 @@ html.dragging-dial .dial:focus-visible { outline-color: transparent; }
 [data-theme='light'] .q:hover { background: var(--surface); }
 [data-theme='light'] .qi { background: #FCE7DC; }
 
-/* ---------- Viết hoa chữ cái đầu mỗi từ cho nhãn, nút, tiêu đề ---------- */
-.label, .seg button, .chip, .btn, .bgroup, .rail span, .act, h1, .group h2, .set b, .tag, .qt b, .eyebrow,
-.hist th, .caps span, .mini .d, .title, .dial .cap, .orb .what b, .day { text-transform: capitalize; }
-
 .cel-moon { fill: #E9EDFF; }
 [data-theme='light'] .cel-moon { fill: #3E4A7A; }
-.bgroup button, .tu span, .act { text-transform: capitalize; }
-.brand small { text-transform: capitalize; }
 
 /* ---------- Chuyển trạng thái mượt ----------
    Nút được giữ nguyên qua các lần vẽ lại (morph.js), nên đổi lựa chọn giờ chạy bằng transition CSS. */
 .day { transition: background .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease); }
 
 /* Nút phân đoạn: nền của mục đang chọn là một miếng trượt (::before), vị trí do JS ghi vào --ind-x / --ind-w. */
-.seg { position: relative; isolation: isolate; }
-.seg button { transition: color .2s var(--ease); }
+.seg { position: relative; isolation: isolate; border-radius: var(--r-lg); padding: 4px; background: var(--surface); border: 1px solid var(--line); }
+.seg button { border-radius: var(--r-md); transition: color var(--dur-base) var(--ease); }
 .seg button.on, [data-theme='light'] .seg button.on { background: none; box-shadow: none; }
 .seg::before { content: ''; position: absolute; z-index: -1; left: 0; top: 4px; bottom: 4px; width: var(--ind-w, 0px);
-  transform: translateX(var(--ind-x, 0px)); border-radius: 999px; background: var(--surface-3); box-shadow: 0 1px 0 var(--line-2) inset;
-  transition: transform var(--ind-d, .26s) var(--ease), width var(--ind-d, .26s) var(--ease); }
-[data-theme='light'] .seg::before { background: #FFFFFF; border-radius: 9px; box-shadow: 0 1px 3px rgba(80, 50, 30, .15); }
+  transform: translateX(var(--ind-x, 0px)); border-radius: var(--r-md); background: var(--surface-3); box-shadow: none;
+  transition: transform var(--ind-d, .2s) var(--ease), width var(--ind-d, .2s) var(--ease); }
+[data-theme='light'] .seg::before { background: var(--surface-2); border-radius: var(--r-md); box-shadow: none; }
 
 /* ---------- Cài đặt: ba nhóm. Cửa sổ vừa / nhỏ: mở từng nhóm bằng nút phân đoạn ở góc tiêu đề.
    Cửa sổ rộng và cao: cả ba nhóm hiện cùng lúc thành hai cột, Nâng cao trải ngang bên dưới. ---------- */
@@ -803,6 +804,8 @@ body { font-size: 13.5px; }
   [data-theme='light'] .act .ring-i { width: 18px; height: 18px; flex: none; }
   .act svg { width: 12px; height: 12px; }
   .side { gap: 6px; }
+  .cond { gap: 4px; }
+  .cond .chips { gap: 4px; }
 }
 
 /* Thêm lịch: gọn lại khi hẹp để nút Thêm lịch vẫn nằm cùng hàng */
@@ -834,18 +837,17 @@ body { font-size: 13.5px; }
 .dd-ico { width: 28px; height: 28px; flex: none; border-radius: 8px; display: grid; place-items: center;
   background: color-mix(in srgb, var(--moon) 15%, transparent); color: var(--moon); }
 .dd-ico svg { width: 16px; height: 16px; display: block; }
-.dd-text { flex: 1; min-width: 0; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; text-transform: capitalize; }
+.dd-text { flex: 1; min-width: 0; font-size: var(--fs-control); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
 .dd-chev { width: 16px; height: 16px; flex: none; margin-left: 4px; color: var(--ink-3); transition: transform .2s var(--ease), color .2s; }
 .dd-btn:hover .dd-chev { color: var(--ink-2); }
 .dd-btn[aria-expanded='true'] .dd-chev { transform: rotate(180deg); color: var(--moon); }
 
-.dd-menu { position: fixed; z-index: 50; top: 0; left: 0; margin: 0; padding: 5px; list-style: none; overflow: auto; overscroll-behavior: contain;
-  border-radius: 14px; background: rgba(17, 24, 52, .86); border: 1px solid rgba(255, 255, 255, .1);
-  -webkit-backdrop-filter: blur(18px) saturate(140%); backdrop-filter: blur(18px) saturate(140%);
-  box-shadow: 0 22px 50px -14px rgba(0, 0, 0, .75), 0 2px 8px rgba(0, 0, 0, .3), inset 0 1px 0 rgba(255, 255, 255, .06);
+.dd-menu { position: fixed; z-index: 50; top: 0; left: 0; margin: 0; padding: 4px; list-style: none; overflow: auto; overscroll-behavior: contain;
+  border-radius: var(--r-lg); background: var(--surface-3); border: 1px solid var(--line-2);
+  box-shadow: var(--shadow);
   font-family: var(--font); color: var(--ink); outline: none; scrollbar-width: none;
   opacity: 0; transform: translateY(-4px) scale(.97); transform-origin: top left;
-  transition: opacity .14s var(--ease), transform .14s var(--ease); }
+  transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
 .dd-menu[data-side='top'] { transform: translateY(4px) scale(.97); transform-origin: bottom left; }
 .dd-menu.in { opacity: 1; transform: none; }
 .dd-menu.out { opacity: 0; transition-duration: .1s; transition-timing-function: cubic-bezier(.4, 0, 1, 1); pointer-events: none; }

@@ -659,3 +659,53 @@ body { font-size: 13.5px; }
   .adder .days { gap: 3px; }
   .day { width: 24px; }
 }
+
+/* ---------- Dropdown tự vẽ (js/dropdown.js) thay cho <select> ----------
+   Nút mở: ô icon + nhãn + mũi tên xoay khi mở. Menu nằm ở lớp trên cùng (gắn vào body, position: fixed). */
+.dd { position: relative; display: inline-flex; min-width: 0; }
+.dd-btn { display: inline-flex; align-items: center; height: 40px; min-width: 0; max-width: 100%; padding: 0 10px 0 6px; border-radius: 12px;
+  background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .1); color: var(--ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 1px 2px rgba(0, 0, 0, .2);
+  transition: background .18s var(--ease), border-color .18s var(--ease), box-shadow .18s var(--ease); }
+.dd-btn:hover { background: rgba(255, 255, 255, .085); border-color: rgba(255, 255, 255, .16); }
+.dd-btn:focus-visible { outline: none; border-color: color-mix(in srgb, var(--moon) 60%, transparent); box-shadow: 0 0 0 3px var(--halo); }
+.dd-btn[aria-expanded='true'] { border-color: color-mix(in srgb, var(--moon) 50%, transparent); box-shadow: 0 0 0 3px var(--halo); background: rgba(255, 255, 255, .08); }
+.dd-face { display: flex; align-items: center; gap: 9px; min-width: 0; width: 100%; }
+.dd-ico { width: 28px; height: 28px; flex: none; border-radius: 8px; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--moon) 15%, transparent); color: var(--moon); }
+.dd-ico svg { width: 16px; height: 16px; display: block; }
+.dd-text { flex: 1; min-width: 0; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; text-transform: capitalize; }
+.dd-chev { width: 16px; height: 16px; flex: none; margin-left: 4px; color: var(--ink-3); transition: transform .2s var(--ease), color .2s; }
+.dd-btn:hover .dd-chev { color: var(--ink-2); }
+.dd-btn[aria-expanded='true'] .dd-chev { transform: rotate(180deg); color: var(--moon); }
+
+.dd-menu { position: fixed; z-index: 50; top: 0; left: 0; margin: 0; padding: 5px; list-style: none; overflow: auto; overscroll-behavior: contain;
+  border-radius: 14px; background: rgba(17, 24, 52, .86); border: 1px solid rgba(255, 255, 255, .1);
+  -webkit-backdrop-filter: blur(18px) saturate(140%); backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: 0 22px 50px -14px rgba(0, 0, 0, .75), 0 2px 8px rgba(0, 0, 0, .3), inset 0 1px 0 rgba(255, 255, 255, .06);
+  font-family: var(--font); color: var(--ink); outline: none; scrollbar-width: none;
+  opacity: 0; transform: translateY(-4px) scale(.97); transform-origin: top left;
+  transition: opacity .14s var(--ease), transform .14s var(--ease); }
+.dd-menu[data-side='top'] { transform: translateY(4px) scale(.97); transform-origin: bottom left; }
+.dd-menu.in { opacity: 1; transform: none; }
+.dd-menu.out { opacity: 0; transition-duration: .1s; transition-timing-function: cubic-bezier(.4, 0, 1, 1); pointer-events: none; }
+.dd-menu [role='option'] { display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 10px 0 5px; border-radius: 9px; cursor: pointer;
+  color: var(--ink-2); white-space: nowrap; transition: background .12s, color .12s; }
+.dd-menu [role='option'] .dd-ico { background: rgba(255, 255, 255, .06); color: var(--ink-2); transition: background .12s, color .12s; }
+.dd-menu [role='option'].active { background: rgba(255, 255, 255, .075); color: var(--ink); }
+.dd-menu [role='option'].active .dd-ico { color: var(--ink); }
+.dd-menu [aria-selected='true'] { color: var(--ink); }
+.dd-menu [aria-selected='true'] .dd-ico { background: color-mix(in srgb, var(--moon) 18%, transparent); color: var(--moon); }
+.dd-menu .dd-text { padding-right: 18px; }
+.dd-check { width: 16px; height: 16px; flex: none; margin-left: auto; color: var(--moon); opacity: 0; }
+.dd-menu [aria-selected='true'] .dd-check { opacity: 1; }
+
+[data-theme='light'] .dd-btn { background: #FFFFFF; border-color: var(--line-2); box-shadow: 0 1px 0 rgba(80, 50, 30, .04), 0 1px 3px rgba(80, 50, 30, .08); }
+[data-theme='light'] .dd-btn:hover { border-color: #D9C8B7; box-shadow: 0 4px 12px -6px rgba(80, 50, 30, .2); }
+[data-theme='light'] .dd-btn:focus-visible, [data-theme='light'] .dd-btn[aria-expanded='true'] { border-color: #EBA48F; box-shadow: 0 0 0 3px #FCE7DC; background: #FFFFFF; }
+[data-theme='light'] .dd-ico { background: #FCE7DC; color: var(--moon); }
+[data-theme='light'] .dd-menu { background: #FFFDFB; border-color: #EDE3D8; -webkit-backdrop-filter: none; backdrop-filter: none;
+  box-shadow: 0 16px 36px -10px rgba(80, 50, 30, .28), 0 2px 6px rgba(80, 50, 30, .08); }
+[data-theme='light'] .dd-menu [role='option'] .dd-ico { background: #F4EDE5; color: var(--ink-2); }
+[data-theme='light'] .dd-menu [role='option'].active { background: #F7F0E8; }
+[data-theme='light'] .dd-menu [aria-selected='true'] .dd-ico { background: #FCE7DC; color: var(--moon); }

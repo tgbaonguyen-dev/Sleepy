@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-/// Việc Nghỉ sẽ làm với máy khi đến giờ.
+/// Việc Sleepy sẽ làm với máy khi đến giờ.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Action {

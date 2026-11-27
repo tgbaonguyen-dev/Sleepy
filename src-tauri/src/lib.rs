@@ -1,4 +1,4 @@
-//! Nghỉ — hẹn giờ tắt máy, ngủ, khoá màn hình cho Ubuntu.
+//! Sleepy — hẹn giờ tắt máy, ngủ, khoá màn hình cho Ubuntu.
 //!
 //! Kiến trúc:
 //! - [`domain`]  kiểu dữ liệu và định dạng thời gian, không phụ thuộc gì.
@@ -40,5 +40,5 @@ pub fn run() {
             win_action,
         ])
         .run(tauri::generate_context!())
-        .expect("không khởi động được Nghỉ");
+        .expect("không khởi động được Sleepy");
 }

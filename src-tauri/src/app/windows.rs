@@ -44,7 +44,7 @@ pub fn open_warning(app: &AppHandle) {
         return;
     }
     let mut builder = WebviewWindowBuilder::new(app, "warning", WebviewUrl::App("warning.html".into()))
-        .title("Nghỉ — sắp đến giờ")
+        .title("Sleepy — sắp đến giờ")
         .inner_size(WARN_W, WARN_H)
         .decorations(false)
         .transparent(true)

@@ -29,7 +29,7 @@ static LAST: Mutex<Option<Last>> = Mutex::new(None);
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(Image::from_bytes(IDLE_ICON)?)
-        .tooltip("Nghỉ")
+        .tooltip("Sleepy")
         .menu(&build_menu(app, "Không có hẹn giờ", false, false)?)
         .on_menu_event(on_menu)
         .build(app)?;
@@ -98,7 +98,7 @@ pub fn refresh(app: &AppHandle, force: bool) {
         if let Ok(menu) = build_menu(app, &status, has_job, can_postpone) {
             tray.set_menu(Some(menu)).ok();
         }
-        tray.set_tooltip(Some(format!("Nghỉ — {status}"))).ok();
+        tray.set_tooltip(Some(format!("Sleepy — {status}"))).ok();
         last.menu_key = menu_key;
     }
 }
@@ -139,7 +139,7 @@ fn build_menu(app: &AppHandle, status: &str, has_job: bool, can_postpone: bool) 
     };
 
     let status_item = item("status", status, false)?;
-    let open = item("open", "Mở Nghỉ", true)?;
+    let open = item("open", "Mở Sleepy", true)?;
     let sep1 = PredefinedMenuItem::separator(app)?;
     let sep2 = PredefinedMenuItem::separator(app)?;
     let quit = item("quit", "Thoát", true)?;

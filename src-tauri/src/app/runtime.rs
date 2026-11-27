@@ -9,7 +9,7 @@ use crate::domain::time::now_ms;
 
 pub fn spawn(app: AppHandle) {
     std::thread::Builder::new()
-        .name("nghi-tick".into())
+        .name("sleepy-tick".into())
         .spawn(move || loop {
             std::thread::sleep(Duration::from_secs(1));
             let (events, snapshot) = {

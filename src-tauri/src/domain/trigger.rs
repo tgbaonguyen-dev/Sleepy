@@ -5,7 +5,7 @@ use super::format::human;
 /// Điều kiện để thực hiện hành động.
 ///
 /// Hai loại đầu dựa vào thời gian; các loại còn lại là "khi xong việc":
-/// Nghỉ theo dõi cảm biến và chỉ bắt đầu đếm lùi khi điều kiện được giữ đủ lâu.
+/// Sleepy theo dõi cảm biến và chỉ bắt đầu đếm lùi khi điều kiện được giữ đủ lâu.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum Trigger {

@@ -1,4 +1,6 @@
-//! Nghỉ — hẹn giờ tắt máy cho Ubuntu.
+//! Nghỉ — hẹn giờ tắt máy, ngủ, khoá màn hình cho Ubuntu.
+
+
 
 pub fn run() {
     tauri::Builder::default()

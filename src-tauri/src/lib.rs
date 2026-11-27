@@ -1,6 +1,6 @@
 //! Nghỉ — hẹn giờ tắt máy, ngủ, khoá màn hình cho Ubuntu.
 
-
+pub mod domain;
 
 pub fn run() {
     tauri::Builder::default()

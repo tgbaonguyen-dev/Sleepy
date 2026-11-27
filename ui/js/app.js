@@ -185,7 +185,6 @@ function draw() {
   const r = $('[data-rename-input]'); if (r && document.activeElement !== r) { r.focus(); r.select(); }
   const p = $('#preset-name'); if (p && document.activeElement !== p) p.focus();
   syncIndicators();
-  syncYtEmbed();
 }
 
 // Chỉ báo trượt (thanh bên, nút phân đoạn): ghi vị trí nút đang chọn vào biến CSS, phần trượt do
@@ -206,20 +205,7 @@ function syncIndicators() {
   });
 }
 let resizeRaf = 0;
-addEventListener('resize', () => {
-  if (!st) return;
-  cancelAnimationFrame(resizeRaf);
-  resizeRaf = requestAnimationFrame(() => {
-    draw();
-    requestAnimationFrame(syncYtEmbed);
-  });
-});
-if (typeof ResizeObserver !== 'undefined') {
-  const ytRo = new ResizeObserver(() => {
-    if (st && Ambient.yt.status !== 'closed') requestAnimationFrame(syncYtEmbed);
-  });
-  ytRo.observe($('#main'));
-}
+addEventListener('resize', () => { if (!st) return; cancelAnimationFrame(resizeRaf); resizeRaf = requestAnimationFrame(() => draw()); });
 document.fonts?.ready.then(() => st && syncIndicators());
 
 // ---------- Phân trang ----------
@@ -705,37 +691,6 @@ let playlistPage = 0;
 let focusedSnd = 'rain';
 let savingMix = false;
 let lastYtTitle = null;
-let ytShowFrame = true;
-let lastYtBoundsKey = '';
-
-function getYtSlotRect() {
-  const el = $('#yt-embed-slot') || $('.snd-list-pane');
-  if (!el) return null;
-  const r = el.getBoundingClientRect();
-  return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) };
-}
-
-function syncYtEmbed() {
-  const yt = Ambient.yt;
-  if (!yt || yt.status === 'closed') {
-    lastYtBoundsKey = '';
-    return;
-  }
-  const slot = $('#yt-embed-slot');
-  const shouldShow = view === 'sounds' && sndTab === 'youtube' && ytShowFrame && !!slot;
-  if (shouldShow) {
-    const r = slot.getBoundingClientRect();
-    const x = Math.round(r.left), y = Math.round(r.top), w = Math.round(r.width), h = Math.round(r.height);
-    const key = `1:${x}:${y}:${w}:${h}`;
-    if (w >= 60 && h >= 60 && key !== lastYtBoundsKey) {
-      lastYtBoundsKey = key;
-      Ambient.ytSetBounds(x, y, w, h, true);
-    }
-  } else if (lastYtBoundsKey !== '0') {
-    lastYtBoundsKey = '0';
-    Ambient.ytSetBounds(0, 0, 0, 0, false);
-  }
-}
 
 const sndPerPage = () => (window.innerHeight >= 740 ? 10 : window.innerHeight >= 620 ? 8 : window.innerHeight >= 500 ? 6 : 5);
 
@@ -876,36 +831,33 @@ function youtubePaneHtml(A) {
   const open = stYt !== 'closed';
   const isMusic = yt.source === 'YouTube Music';
 
-  const bar = `<div class="snd-subbar yt-bar">
-    <div class="pl-filter">
-      <button class="sub-tab ${open && !isMusic ? 'on' : ''}" data-yt="youtube">YouTube</button>
-      <button class="sub-tab ${open && isMusic ? 'on' : ''}" data-yt="music">YT Music</button>
-    </div>
-    ${open ? `<div class="pl-add">
-      <button class="sub-tab ${yt.videoOnly ? 'on' : ''}" data-yt="video-only" title="Chỉ chiếu đúng khung video, ẩn thanh bên &amp; bình luận">Chỉ video${yt.videoOnly ? ' · Bật' : ''}</button>
-      <button class="sub-tab ${ytShowFrame ? 'on' : ''}" data-yt="${ytShowFrame ? 'hide' : 'show'}" title="Bật/tắt khung chiếu trong app">${ytShowFrame ? 'Ẩn khung' : 'Hiện khung'}</button>
-      <button class="cmix-del" data-yt="close" title="Dừng và đóng YouTube">×</button>
-    </div>` : ''}
-  </div>`;
-
-  let slotBody = '';
   if (!open) {
-    slotBody = `<div class="yt-empty">
-      <p>Mở YouTube ngay trong khung này để đăng nhập và nghe nhạc.</p>
+    return `<div class="yt-pane">
+      <div class="yt-status"><i class="yt-dot closed"></i><span>Mở YouTube để đăng nhập và chọn nhạc — bài đang phát sẽ tự đồng bộ lên đĩa nhạc bên phải.</span></div>
       <div class="yt-actions">
-        <button class="btn primary" data-yt="youtube">${Icons.play} Mở YouTube</button>
-        <button class="btn" data-yt="music">${Icons.lofi} YouTube Music</button>
+        <button class="btn primary" data-yt="music">${Icons.lofi} Mở YouTube Music</button>
+        <button class="btn" data-yt="youtube">${Icons.play} Mở YouTube</button>
       </div>
-      <small class="note">Bật "Chỉ video" để chỉ hiện đúng khung video, hoặc "Ẩn khung" để nghe nền.</small>
-    </div>`;
-  } else if (!ytShowFrame) {
-    slotBody = `<div class="yt-empty">
-      <div class="yt-status"><i class="yt-dot hidden"></i><b>${esc(yt.title || 'Đang phát nền (chỉ nghe tiếng)')}</b></div>
-      <button class="btn" data-yt="show">${Icons.play} Hiện khung video</button>
+      <p class="note">Đóng cửa sổ YouTube (×) để ẩn chạy nền và chỉ nghe tiếng cùng đĩa nhạc.</p>
     </div>`;
   }
 
-  return `${bar}<div class="yt-stage-wrap"><div id="yt-embed-slot" class="yt-slot ${open && ytShowFrame ? 'live' : ''} ${open && ytShowFrame && yt.videoOnly ? 'video-only' : ''}">${slotBody}</div></div>`;
+  const titleTxt = yt.title || (stYt === 'hidden' ? 'Đang phát nền (chỉ nghe tiếng)' : 'Cửa sổ YouTube đang mở');
+  return `<div class="yt-pane">
+    <div class="yt-head">
+      <div class="yt-status"><i class="yt-dot ${stYt}"></i><b>${esc(titleTxt)}</b></div>
+      <button class="btn ghost small" data-yt="close" title="Dừng và đóng YouTube">Tắt</button>
+    </div>
+    <div class="yt-opt">
+      <div><b>Chỉ nghe tiếng (chạy nền)</b><small>Ẩn cửa sổ YouTube, điều khiển trực tiếp trên đĩa nhạc bên phải</small></div>
+      <button class="switch ${stYt === 'hidden' ? 'on' : ''}" data-yt="${stYt === 'visible' ? 'hide' : 'show'}" aria-pressed="${stYt === 'hidden'}" title="Ẩn/hiện cửa sổ YouTube"></button>
+    </div>
+    <div class="yt-switch-bar">
+      <span class="note">Chuyển nguồn:</span>
+      <button class="sub-tab ${!isMusic ? 'on' : ''}" data-yt="youtube">YouTube</button>
+      <button class="sub-tab ${isMusic ? 'on' : ''}" data-yt="music">YouTube Music</button>
+    </div>
+  </div>`;
 }
 
 function viewSounds() {
@@ -961,10 +913,7 @@ function viewSounds() {
 
   const subCtl = ytSynced
     ? `<div class="stage-subctl yt-sync-bar">
-        <div class="stage-vol-meta">
-          <button class="stage-fade-btn ${yt.videoOnly ? 'on' : ''}" data-yt="video-only" title="Chỉ chiếu đúng khung video">${yt.videoOnly ? 'Chỉ video: Bật' : 'Chỉ video'}</button>
-          <button class="stage-fade-btn ${ytShowFrame && sndTab === 'youtube' ? 'on' : ''}" data-yt="${ytShowFrame && sndTab === 'youtube' ? 'hide' : 'show'}">${ytShowFrame && sndTab === 'youtube' ? 'Ẩn khung' : 'Hiện khung'}</button>
-        </div>
+        <div class="stage-vol-meta"><span>Nguồn: ${esc(yt.source || 'YouTube')}</span><button class="stage-fade-btn" data-yt="${yt.status === 'visible' ? 'hide' : 'show'}">${yt.status === 'visible' ? 'Ẩn cửa sổ' : 'Hiện cửa sổ'}</button></div>
       </div>`
     : stageChannel.id === 'lofi'
       ? `<div class="stage-subctl">
@@ -1132,14 +1081,7 @@ document.addEventListener('click', async (e) => {
   const t = e.target.closest('button, [data-rename], .mini');
   if (!t) return;
   const ds = t.dataset;
-  if (ds.win) {
-    await sleepy.win(ds.win);
-    if (ds.win === 'max') {
-      setTimeout(syncYtEmbed, 80);
-      setTimeout(syncYtEmbed, 220);
-    }
-    return;
-  }
+  if (ds.win) return sleepy.win(ds.win);
   if (ds.view) { if (view === ds.view) return; view = ds.view; savingPreset = false; renaming = null; if (view === 'timer' && draft.type === 'process') loadProcs(); return render(); }
   if (ds.action) { if (draft.action === ds.action) return; draft.action = ds.action; saveDraft(); return render(); }
   if (ds.mode) { const type = ds.mode === 'cond' ? (draft.condType || 'idle') : ds.mode; if (draft.type === type) return; draft.type = type; saveDraft(); if (draft.type === 'process') loadProcs(); return render(); }
@@ -1162,32 +1104,10 @@ document.addEventListener('click', async (e) => {
   if (ds.delCmix) return Ambient.deleteMix(ds.delCmix);
   if (ds.yt) {
     try {
-      if (ds.yt === 'hide') {
-        ytShowFrame = false;
-        lastYtBoundsKey = '0';
-        await Ambient.ytHide();
-      } else if (ds.yt === 'close') {
-        ytShowFrame = true;
-        lastYtBoundsKey = '';
-        await Ambient.ytClose();
-      } else if (ds.yt === 'video-only') {
-        focusedSnd = 'youtube';
-        await Ambient.ytSetVideoOnly(!Ambient.yt.videoOnly);
-      } else if (ds.yt === 'show') {
-        sndTab = 'youtube';
-        ytShowFrame = true;
-        focusedSnd = 'youtube';
-        lastYtBoundsKey = '';
-        render();
-        await Ambient.ytOpen(Ambient.yt.source === 'YouTube Music' ? 'music' : 'youtube', getYtSlotRect());
-      } else {
-        sndTab = 'youtube';
-        ytShowFrame = true;
-        focusedSnd = 'youtube';
-        lastYtBoundsKey = '';
-        render();
-        await Ambient.ytOpen(ds.yt, getYtSlotRect());
-      }
+      if (ds.yt === 'hide') await Ambient.ytHide();
+      else if (ds.yt === 'close') await Ambient.ytClose();
+      else if (ds.yt === 'show') { focusedSnd = 'youtube'; await Ambient.ytOpen(Ambient.yt.source === 'YouTube Music' ? 'music' : 'youtube'); }
+      else { focusedSnd = 'youtube'; await Ambient.ytOpen(ds.yt); }
       return render();
     } catch (err) { return toast(String(err), true); }
   }

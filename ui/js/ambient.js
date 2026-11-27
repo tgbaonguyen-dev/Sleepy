@@ -21,7 +21,7 @@ window.Ambient = (() => {
     presets: [],
   };
 
-  let yt = { status: 'closed', title: null, source: null, videoId: null, artwork: null, videoOnly: false };
+  let yt = { status: 'closed', title: null, source: null, videoId: null, artwork: null };
 
   function applySnapshot(next) {
     if (!next) return;
@@ -130,13 +130,11 @@ window.Ambient = (() => {
     pickFolder: () => sleepy.audioPickFolder(),
     pickFiles: () => sleepy.audioPickFiles(),
     removeCustomTrack: (id) => sleepy.audioRemoveCustomTrack(id),
-    ytOpen: (mode, rect) => sleepy.ytOpen(mode, rect),
-    ytSetBounds: (x, y, w, h, visible) => sleepy.ytSetBounds(x, y, w, h, visible),
+    ytOpen: (mode) => sleepy.ytOpen(mode),
     ytHide: () => sleepy.ytHide(),
     ytClose: () => sleepy.ytClose(),
     ytStatus: () => sleepy.ytStatus(),
     ytControl: (action) => sleepy.ytControl(action),
-    ytSetVideoOnly: (enabled) => sleepy.ytSetVideoOnly(enabled),
     syncJob: () => {},
     onChange: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
   };

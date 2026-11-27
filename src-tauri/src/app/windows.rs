@@ -1,14 +1,9 @@
 //! Cửa sổ chính, cửa sổ cảnh báo và cửa sổ YouTube phát nền.
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 use serde::Serialize;
-use tauri::webview::WebviewBuilder;
-use tauri::{
-    AppHandle, LogicalPosition, LogicalSize, Manager, Webview, WebviewUrl, WebviewWindowBuilder, Window,
-    WindowEvent,
-};
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder, Window, WindowEvent};
 
 use super::AppState;
 
@@ -24,7 +19,6 @@ pub struct YtMediaState {
     pub source: Option<String>,
     pub video_id: Option<String>,
     pub artwork: Option<String>,
-    pub video_only: bool,
 }
 
 #[derive(Default)]
@@ -35,11 +29,9 @@ struct YtMetaCache {
 }
 
 static YT_CACHE: Mutex<Option<YtMetaCache>> = Mutex::new(None);
-static YT_VIDEO_ONLY: AtomicBool = AtomicBool::new(false);
-static YT_VISIBLE: AtomicBool = AtomicBool::new(false);
 
 pub fn show_main(app: &AppHandle) {
-    if let Some(w) = app.get_window("main") {
+    if let Some(w) = app.get_webview_window("main") {
         w.unminimize().ok();
         w.show().ok();
         w.set_focus().ok();
@@ -109,224 +101,59 @@ pub fn close_warning(app: &AppHandle) {
     }
 }
 
-#[cfg(target_os = "linux")]
-fn position_youtube_overlay(app: &AppHandle, wv: &Webview, x: f64, y: f64, w: f64, h: f64, visible: bool) {
-    use gtk::prelude::*;
-    let Some(main_win) = app.get_window("main") else {
-        return;
-    };
-    let (mx, my, mw, mh) = (
-        x.max(0.0).round() as i32,
-        y.max(0.0).round() as i32,
-        w.max(60.0).round() as i32,
-        h.max(60.0).round() as i32,
-    );
-    let _ = wv.with_webview(move |pw| {
-        let Ok(gtk_win) = main_win.gtk_window() else {
-            return;
-        };
-        let yt_widget: gtk::Widget = pw.inner().upcast();
-        let already_in_overlay = yt_widget
-            .parent()
-            .is_some_and(|p| p.dynamic_cast::<gtk::Overlay>().is_ok());
-        if !already_in_overlay {
-            if let Some(parent) = yt_widget
-                .parent()
-                .and_then(|p| p.dynamic_cast::<gtk::Container>().ok())
-            {
-                parent.remove(&yt_widget);
-            }
-            let overlay = if let Some(ov) = gtk_win.child().and_then(|c| c.downcast::<gtk::Overlay>().ok()) {
-                ov
-            } else {
-                let ov = gtk::Overlay::new();
-                if let Some(child) = gtk_win.child() {
-                    gtk_win.remove(&child);
-                    ov.add(&child);
-                }
-                gtk_win.add(&ov);
-                ov.show();
-                ov
-            };
-            overlay.add_overlay(&yt_widget);
-        }
-        yt_widget.set_halign(gtk::Align::Start);
-        yt_widget.set_valign(gtk::Align::Start);
-        yt_widget.set_hexpand(false);
-        yt_widget.set_vexpand(false);
-        yt_widget.set_margin_start(mx);
-        yt_widget.set_margin_top(my);
-        if visible {
-            yt_widget.set_size_request(mw, mh);
-            yt_widget.show();
-        } else {
-            yt_widget.hide();
-            yt_widget.set_size_request(0, 0);
-        }
-        yt_widget.queue_resize();
-    });
-}
-
-#[cfg(not(target_os = "linux"))]
-fn position_youtube_overlay(_app: &AppHandle, wv: &Webview, x: f64, y: f64, w: f64, h: f64, visible: bool) {
-    if visible && w >= 60.0 && h >= 60.0 {
-        wv.set_bounds(tauri::Rect {
-            position: LogicalPosition::new(x.max(0.0), y.max(0.0)).into(),
-            size: LogicalSize::new(w, h).into(),
-        })
-        .ok();
-        wv.show().ok();
-    } else {
-        wv.hide().ok();
-    }
-}
-
-pub fn open_youtube(
-    app: &AppHandle,
-    raw_url: &str,
-    x: f64,
-    y: f64,
-    w: f64,
-    h: f64,
-) -> Result<String, String> {
+pub fn open_youtube(app: &AppHandle, raw_url: &str) -> Result<String, String> {
     let parsed = tauri::Url::parse(raw_url).map_err(|e| format!("URL không hợp lệ: {e}"))?;
     let host = parsed.host_str().unwrap_or("");
     if !matches!(host, "music.youtube.com" | "www.youtube.com") {
         return Err("Chỉ hỗ trợ YouTube và YouTube Music".into());
     }
 
-    if let Some(wv) = app.get_webview("youtube") {
-        let current_host = wv.url().ok().and_then(|u| u.host_str().map(|s| s.to_string()));
+    if let Some(w) = app.get_webview_window("youtube") {
+        let current_host = w.url().ok().and_then(|u| u.host_str().map(|s| s.to_string()));
         if current_host.as_deref() != Some(host) {
-            wv.navigate(parsed).map_err(|e| e.to_string())?;
+            w.navigate(parsed).map_err(|e| e.to_string())?;
         }
-        position_youtube_overlay(app, &wv, x, y, w, h, true);
-        YT_VISIBLE.store(true, Ordering::Relaxed);
-        apply_video_only_script(&wv, YT_VIDEO_ONLY.load(Ordering::Relaxed));
+        w.unminimize().ok();
+        w.show().ok();
+        w.set_focus().ok();
         return Ok("visible".into());
     }
 
-    let main_win = app
-        .get_window("main")
-        .ok_or_else(|| "Không tìm thấy cửa sổ chính".to_string())?;
-    let pos = LogicalPosition::new(x.max(0.0), y.max(0.0));
-    let size = LogicalSize::new(w.max(200.0), h.max(120.0));
-    let builder = WebviewBuilder::new("youtube", WebviewUrl::External(parsed));
-    let wv = main_win
-        .add_child(builder, pos, size)
-        .map_err(|e| format!("Không nhúng được khung YouTube: {e}"))?;
-    YT_VISIBLE.store(true, Ordering::Relaxed);
-    YT_VIDEO_ONLY.store(true, Ordering::Relaxed);
-    position_youtube_overlay(app, &wv, x, y, w, h, true);
-    apply_video_only_script(&wv, true);
+    WebviewWindowBuilder::new(app, "youtube", WebviewUrl::External(parsed))
+        .title("Sleepy | YouTube Audio")
+        .inner_size(980.0, 680.0)
+        .decorations(true)
+        .center()
+        .build()
+        .map_err(|e| format!("Không mở được cửa sổ YouTube: {e}"))?;
     Ok("visible".into())
 }
 
-pub fn set_youtube_bounds(app: &AppHandle, x: f64, y: f64, w: f64, h: f64, visible: bool) -> String {
-    let Some(wv) = app.get_webview("youtube") else {
-        YT_VISIBLE.store(false, Ordering::Relaxed);
-        return "closed".into();
-    };
-    let show = visible && w >= 60.0 && h >= 60.0;
-    position_youtube_overlay(app, &wv, x, y, w, h, show);
-    YT_VISIBLE.store(show, Ordering::Relaxed);
-    if show {
-        "visible".into()
-    } else {
-        "hidden".into()
-    }
-}
-
 pub fn hide_youtube(app: &AppHandle) -> String {
-    if let Some(wv) = app.get_webview("youtube") {
-        position_youtube_overlay(app, &wv, 0.0, 0.0, 0.0, 0.0, false);
-        YT_VISIBLE.store(false, Ordering::Relaxed);
+    if let Some(w) = app.get_webview_window("youtube") {
+        w.hide().ok();
         return "hidden".into();
     }
-    YT_VISIBLE.store(false, Ordering::Relaxed);
     "closed".into()
 }
 
 pub fn close_youtube(app: &AppHandle) -> String {
-    YT_VIDEO_ONLY.store(false, Ordering::Relaxed);
-    YT_VISIBLE.store(false, Ordering::Relaxed);
-    if let Some(wv) = app.get_webview("youtube") {
-        wv.close().ok();
+    if let Some(w) = app.get_webview_window("youtube") {
+        w.destroy().ok();
     }
     "closed".into()
 }
 
-fn apply_video_only_script(wv: &Webview, enabled: bool) {
-    let js = if enabled {
-        r#"(() => {
-  const CSS = `
-    html.sleepy-vo, html.sleepy-vo body { overflow: hidden !important; background: #000 !important; margin: 0 !important; padding: 0 !important; }
-    html.sleepy-vo #masthead-container, html.sleepy-vo #secondary, html.sleepy-vo #below,
-    html.sleepy-vo #related, html.sleepy-vo #comments, html.sleepy-vo #guide,
-    html.sleepy-vo tp-yt-app-drawer, html.sleepy-vo ytd-mini-guide-renderer,
-    html.sleepy-vo #chat, html.sleepy-vo #panels, html.sleepy-vo ytd-merch-shelf-renderer,
-    html.sleepy-vo ytmusic-nav-bar, html.sleepy-vo #nav-bar-background,
-    html.sleepy-vo #side-panel, html.sleepy-vo ytmusic-player-bar, html.sleepy-vo #mini-guide { display: none !important; }
-    html.sleepy-vo ytd-watch-flexy, html.sleepy-vo #columns, html.sleepy-vo #primary,
-    html.sleepy-vo #primary-inner, html.sleepy-vo #player, html.sleepy-vo #player-container-outer,
-    html.sleepy-vo #player-container-inner, html.sleepy-vo #player-container,
-    html.sleepy-vo ytd-player, html.sleepy-vo #container.ytd-player { contain: none !important; transform: none !important; overflow: visible !important; }
-    html.sleepy-vo #movie_player, html.sleepy-vo #song-video {
-      position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important;
-      max-width: 100vw !important; max-height: 100vh !important; z-index: 2147483647 !important; background: #000 !important;
-    }
-    html.sleepy-vo #movie_player .html5-video-container, html.sleepy-vo #song-video .html5-video-container {
-      position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important;
-    }
-    html.sleepy-vo #movie_player video, html.sleepy-vo #song-video video {
-      position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important;
-      left: 0 !important; top: 0 !important; object-fit: cover !important;
-    }
-  `;
-  let el = document.getElementById('sleepy-video-only');
-  if (!el) { el = document.createElement('style'); el.id = 'sleepy-video-only'; document.head.appendChild(el); }
-  el.textContent = CSS;
-  const sync = () => {
-    const isWatch = location.pathname.startsWith('/watch') || location.hostname === 'music.youtube.com';
-    const hasPlayer = isWatch && !!document.querySelector('#movie_player video, #song-video video');
-    document.documentElement.classList.toggle('sleepy-vo', hasPlayer);
-    window.dispatchEvent(new Event('resize'));
-  };
-  if (!window.__sleepyVoBound) {
-    window.__sleepyVoBound = true;
-    window.addEventListener('yt-navigate-finish', () => { if (document.getElementById('sleepy-video-only')) setTimeout(sync, 180); });
-  }
-  sync();
-})()"#
-    } else {
-        r#"(() => {
-  const el = document.getElementById('sleepy-video-only');
-  if (el) el.remove();
-  document.documentElement.classList.remove('sleepy-vo');
-  window.dispatchEvent(new Event('resize'));
-})()"#
-    };
-    wv.eval(js).ok();
-}
-
-pub fn set_youtube_video_only(app: &AppHandle, enabled: bool) -> Result<bool, String> {
-    YT_VIDEO_ONLY.store(enabled, Ordering::Relaxed);
-    if let Some(wv) = app.get_webview("youtube") {
-        apply_video_only_script(&wv, enabled);
-    }
-    Ok(enabled)
-}
-
 pub fn youtube_status(app: &AppHandle) -> String {
-    match app.get_webview("youtube") {
-        Some(_) if YT_VISIBLE.load(Ordering::Relaxed) => "visible".into(),
+    match app.get_webview_window("youtube") {
+        Some(w) if w.is_visible().unwrap_or(false) => "visible".into(),
         Some(_) => "hidden".into(),
         None => "closed".into(),
     }
 }
 
 pub fn youtube_control(app: &AppHandle, action: &str) -> Result<(), String> {
-    let Some(wv) = app.get_webview("youtube") else {
+    let Some(w) = app.get_webview_window("youtube") else {
         return Ok(());
     };
     let js = match action {
@@ -341,30 +168,28 @@ pub fn youtube_control(app: &AppHandle, action: &str) -> Result<(), String> {
         }
         _ => return Ok(()),
     };
-    wv.eval(js).map_err(|e| e.to_string())
+    w.eval(js).map_err(|e| e.to_string())
 }
 
 pub fn youtube_media(app: &AppHandle) -> YtMediaState {
-    let video_only = YT_VIDEO_ONLY.load(Ordering::Relaxed);
-    let Some(wv) = app.get_webview("youtube") else {
+    let Some(w) = app.get_webview_window("youtube") else {
         return YtMediaState {
             status: "closed".into(),
             title: None,
             source: None,
             video_id: None,
             artwork: None,
-            video_only: false,
         };
     };
 
-    let status = if YT_VISIBLE.load(Ordering::Relaxed) {
+    let status = if w.is_visible().unwrap_or(false) {
         "visible"
     } else {
         "hidden"
     }
     .to_string();
 
-    let url = wv.url().ok();
+    let url = w.url().ok();
     let host = url
         .as_ref()
         .and_then(|u| u.host_str())
@@ -383,14 +208,28 @@ pub fn youtube_media(app: &AppHandle) -> YtMediaState {
             .filter(|id| !id.is_empty() && id.len() <= 20)
     });
 
-    let (title, artwork) = match video_id.as_deref() {
+    let (oembed_title, artwork) = match video_id.as_deref() {
         Some(id) => fetch_yt_meta_cached(id),
         None => (None, None),
     };
 
-    if video_only && video_id.is_some() {
-        apply_video_only_script(&wv, true);
-    }
+    let title = oembed_title.or_else(|| {
+        let raw = w.title().ok().unwrap_or_default();
+        let cleaned = raw
+            .trim()
+            .trim_end_matches(" - YouTube Music")
+            .trim_end_matches(" - YouTube")
+            .trim();
+        if cleaned.is_empty()
+            || cleaned == "YouTube"
+            || cleaned == "YouTube Music"
+            || cleaned == "Sleepy | YouTube Audio"
+        {
+            None
+        } else {
+            Some(cleaned.to_string())
+        }
+    });
 
     YtMediaState {
         status,
@@ -398,7 +237,6 @@ pub fn youtube_media(app: &AppHandle) -> YtMediaState {
         source: Some(source),
         video_id,
         artwork,
-        video_only,
     }
 }
 

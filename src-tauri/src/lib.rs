@@ -62,13 +62,11 @@ pub fn run() {
             audio_pick_files,
             audio_remove_custom_track,
             yt_open,
-            yt_set_bounds,
             yt_hide,
             yt_close,
             yt_status,
             yt_media,
             yt_control,
-            yt_set_video_only,
         ])
         .run(tauri::generate_context!())
         .expect("không khởi động được Sleepy");

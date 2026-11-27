@@ -3459,7 +3459,6 @@ name = "sleepy"
 version = "2.0.0"
 dependencies = [
  "chrono",
- "gtk",
  "serde",
  "serde_json",
  "symphonia",

@@ -441,36 +441,15 @@ pub fn audio_remove_custom_track(state: State<'_, AppState>, id: String) {
 }
 
 #[tauri::command]
-pub fn yt_open(
-    app: AppHandle,
-    mode: String,
-    x: Option<f64>,
-    y: Option<f64>,
-    w: Option<f64>,
-    h: Option<f64>,
-) -> Result<String, String> {
+pub fn yt_open(app: AppHandle, mode: String) -> Result<String, String> {
     let url = if mode == "music" {
         "https://music.youtube.com"
     } else {
         "https://www.youtube.com"
     };
-    let status = super::windows::open_youtube(
-        &app,
-        url,
-        x.unwrap_or(120.0),
-        y.unwrap_or(120.0),
-        w.unwrap_or(480.0),
-        h.unwrap_or(320.0),
-    )?;
+    let status = super::windows::open_youtube(&app, url)?;
     app.emit("yt-media", super::windows::youtube_media(&app)).ok();
     Ok(status)
-}
-
-#[tauri::command]
-pub fn yt_set_bounds(app: AppHandle, x: f64, y: f64, w: f64, h: f64, visible: bool) -> String {
-    let status = super::windows::set_youtube_bounds(&app, x, y, w, h, visible);
-    app.emit("yt-media", super::windows::youtube_media(&app)).ok();
-    status
 }
 
 #[tauri::command]
@@ -500,11 +479,4 @@ pub fn yt_media(app: AppHandle) -> super::windows::YtMediaState {
 #[tauri::command]
 pub fn yt_control(app: AppHandle, action: String) -> Result<(), String> {
     super::windows::youtube_control(&app, &action)
-}
-
-#[tauri::command]
-pub fn yt_set_video_only(app: AppHandle, enabled: bool) -> Result<bool, String> {
-    let out = super::windows::set_youtube_video_only(&app, enabled)?;
-    app.emit("yt-media", super::windows::youtube_media(&app)).ok();
-    Ok(out)
 }

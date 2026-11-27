@@ -2,6 +2,7 @@
 
 mod autostart;
 mod state;
+mod tray;
 mod windows;
 
 pub use state::AppState;

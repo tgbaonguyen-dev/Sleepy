@@ -1,23 +1,17 @@
-# Nguồn âm thanh
+# Nguồn âm thanh & hình ảnh
 
-Các tệp đã được cắt tối đa 90 giây, chuẩn hoá độ to (EBU R128) và chuyển sang Ogg Vorbis.
+## Âm thanh thiên nhiên, tiếng ồn & sóng não
+* **Moodist** ([remvze/moodist](https://github.com/remvze/moodist) — MIT):
+  * Mưa & Bão: `rain.mp3`, `heavy-rain.mp3`, `rain-tent.mp3`, `rain-window.mp3`, `rain-leaves.mp3`, `rain-car.mp3`, `rain-umbrella.mp3`, `thunder.mp3`.
+  * Thiên nhiên: `wind.mp3`, `howling-wind.mp3`, `waves.mp3`, `river.mp3`, `waterfall.mp3`, `droplets.mp3`, `fire.mp3`, `jungle.mp3`.
+  * Đêm & Sinh vật: `crickets.mp3`, `frog.mp3`, `owl.mp3`, `birds.mp3`, `cat.mp3`, `whale.mp3`.
+  * Sóng não & Không gian: `binaural-delta.wav`, `binaural-theta.wav`, `binaural-alpha.wav`, `fan.mp3`, `wind-chimes.mp3`, `clock.mp3`, `train.mp3`, `airplane.mp3`, `cafe.mp3`, `library.mp3`.
+* **Tổng hợp thuần Rust** (`src-tauri/src/audio/decoder.rs`):
+  * Tiếng ồn nâu (`brown`), Tiếng ồn hồng (`pink`), Tiếng ồn trắng (`white`).
 
-## Âm nền (Wikimedia Commons)
+## Nhạc Lo-Fi
+* **Open Lo-Fi** ([btahir/open-lofi](https://github.com/btahir/open-lofi) — **CC0 1.0 Universal / Public Domain**):
+  * 23 bản nhạc `.mp3` trong `ui/sounds/lofi/`.
 
-| Tệp | Âm | Tác giả | Giấy phép | Nguồn |
-|---|---|---|---|---|
-| `rain.ogg` | Mưa | ezwa | Public domain | [File:Rain on a veranda and t.ogg](https://commons.wikimedia.org/wiki/File:Rain_on_a_veranda_and_t.ogg) |
-| `thunder.ogg` | Mưa giông | Luis Alvaz | CC BY-SA 4.0 | [File:Lluvia y truenos desde la ventana 01.mp3](https://commons.wikimedia.org/wiki/File:Lluvia_y_truenos_desde_la_ventana_01.mp3) |
-| `wind.ogg` | Gió | Tvabutzku1234 | CC0 | [File:Howling wind.ogg](https://commons.wikimedia.org/wiki/File:Howling_wind.ogg) |
-| `waves.ogg` | Sóng biển | Luftrum | CC BY 3.0 | [File:Oceanwavescrushing.ogg](https://commons.wikimedia.org/wiki/File:Oceanwavescrushing.ogg) |
-| `fire.ogg` | Lửa trại | Work With Sounds / La Fonderie | CC BY 4.0 | [File:WWS Fireoftheforge.ogg](https://commons.wikimedia.org/wiki/File:WWS_Fireoftheforge.ogg) |
-| `crickets.ogg` | Dế kêu | Fortunamarco2003 | CC BY-SA 4.0 | [File:Night original format.wav](https://commons.wikimedia.org/wiki/File:Night_original_format.wav) |
-
-Tiếng ồn nâu được tạo trực tiếp trong `ui/js/ambient.js`, không dùng tệp.
-
-## Nhạc lofi — HoliznaCC0 (CC0 1.0, public domain)
-
-- Album *Winter Lofi*: https://freemusicarchive.org/music/holiznacc0/winter-lofi — 2 Hour Delay, Winter Blues, First Snow, Snow Drift, Fire Place
-- Album *Spring at last (LOFI TAPE)*: https://freemusicarchive.org/music/holiznacc0/spring-at-last-lofi-tape — Kids, Spring At Last, Sense Of Purpose, April Showers
-
-Các tệp CC BY / CC BY-SA được dùng nguyên vẹn (chỉ cắt, chuẩn hoá); khi phát hành cần giữ ghi công này.
+## Ảnh minh hoạ thẻ âm thanh (`ui/img/*.jpg`)
+* **Lofi-Music** ([riccardobertolini/lofi-music](https://github.com/riccardobertolini/lofi-music) — MIT): các ảnh nền thiên nhiên và không gian đã được tối ưu kích thước cho thẻ âm thanh.

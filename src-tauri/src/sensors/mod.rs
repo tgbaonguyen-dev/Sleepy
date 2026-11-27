@@ -1,6 +1,10 @@
 //! Cảm biến cho các kiểu hẹn "khi xong việc": CPU, mạng, pin, thời gian rảnh, tiến trình.
 
+mod linux;
+
 use serde::Serialize;
+
+pub use linux::LinuxSensors;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]

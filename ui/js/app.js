@@ -10,6 +10,7 @@ let procList = [], procRunning = null, savingPreset = false, renaming = null;
 const spark = { cpu: [], net: [] };
 // Danh sách dài (preset, lịch lặp, nhật ký) không bao giờ cuộn: mỗi trang chỉ chứa số dòng vừa khung,
 // số đó được đo lại sau mỗi lần vẽ / đổi cỡ cửa sổ (xem fitPages).
+let setTab = 'warn'; // nhóm cài đặt đang mở khi cửa sổ nhỏ (rộng thì cả ba nhóm hiện cùng lúc)
 const pages = { presets: { page: 0, per: 8 }, schedules: { page: 0, per: 6 }, history: { page: 0, per: 10 } };
 const sched = { h: 23, m: 30, days: [1, 2, 3, 4, 5], action: 'shutdown' };
 
@@ -546,26 +547,31 @@ function sw(key) { return `<button class="switch ${st.settings[key] ? 'on' : ''}
 function setRow(title, desc, ctl) { return `<div class="set"><div><b>${title}</b>${desc ? `<p>${desc}</p>` : ''}</div>${ctl}</div>`; }
 function viewSettings() {
   const capWord = { yes: ['Được', 'yes'], challenge: ['Cần mật khẩu', ''], no: ['Không', 'no'], na: ['Không hỗ trợ', 'no'], unknown: ['Chưa rõ', ''] };
-  return `<section class="view" data-key="v-settings">
-    <div class="head"><div><div class="eyebrow">Cài đặt</div><h1>Tuỳ chỉnh Sleepy</h1></div></div>
-    <div class="card group"><h2>Cảnh báo</h2>
+  const g = (k) => `card group${setTab === k ? ' cur' : ''}" data-g="${k}`;
+  return `<section class="view settings" data-key="v-settings">
+    <div class="head"><div><div class="eyebrow">Cài đặt</div><h1>Tuỳ chỉnh Sleepy</h1></div>
+      <div class="seg stabs" data-morph-keep="style">${[['warn', 'Cảnh báo'], ['app', 'Ứng dụng'], ['adv', 'Nâng cao']]
+        .map(([k, l]) => `<button class="${setTab === k ? 'on' : ''}" data-stab="${k}">${l}</button>`).join('')}</div></div>
+    <div class="groups">
+    <div class="${g('warn')}"><h2>Cảnh báo</h2>
       ${setRow('Báo trước', 'Một cửa sổ nhỏ hiện ở góc màn hình để bạn kịp hoãn hoặc huỷ.', seg('warnMinutes', [[0, 'Không'], [1, '1 phút'], [2, '2 phút'], [5, '5 phút'], [10, '10 phút']]))}
       ${setRow('Chờ thêm sau khi xong việc', 'Với kiểu hẹn “Khi xong việc”, Sleepy chờ thêm một chút rồi mới làm.', seg('graceSeconds', [[30, '30 giây'], [60, '60 giây'], [120, '2 phút']]))}
       ${setRow('Âm báo', 'Chuông nhẹ lúc báo trước và trong 10 giây cuối.', sw('sound'))}
       ${setRow('Chế độ thử', 'Đến giờ chỉ hiện thông báo, máy không tắt thật. Hợp để thử lịch.', sw('dryRun'))}
     </div>
-    <div class="card group"><h2>Ứng dụng</h2>
+    <div class="${g('app')}"><h2>Ứng dụng</h2>
       ${setRow('Giao diện', 'Đêm có bầu trời sao; Sáng phẳng và gọn cho ban ngày.', seg('theme', [['dark', 'Đêm'], ['light', 'Sáng'], ['system', 'Theo hệ thống']]))}
       ${setRow('Đóng cửa sổ thì ẩn xuống khay', 'Hẹn giờ vẫn chạy. Muốn thoát hẳn thì mở menu ở khay.', sw('closeToTray'))}
       ${setRow('Mở cùng máy', 'Tự mở khi bạn đăng nhập để lịch luôn chạy.', sw('autostart'))}
       ${setRow('Mở lên là ẩn luôn', 'Không hiện cửa sổ, chỉ nằm dưới khay.', sw('startMinimized'))}
     </div>
-    <div class="card group"><h2>Nâng cao</h2>
+    <div class="${g('adv')}"><h2>Nâng cao</h2>
       ${setRow('Lệnh chạy trước', 'Chạy lệnh này ngay trước khi làm, tối đa 30 giây. Ví dụ <span style="font-family:var(--mono)">playerctl pause</span> để dừng nhạc.', `<input class="mono" data-text="preCommand" value="${esc(st.settings.preCommand)}" placeholder="(để trống)" spellcheck="false">`)}
       <div class="set" style="display:block"><b>Ubuntu có cho phép không</b>
         <div class="caps" style="margin-top:10px">${ORDER.map((k) => { const c = capWord[st.caps?.[k]] || capWord.unknown; return `<div><span>${S.ACTIONS[k].label}</span><span class="${c[1]}">${c[0]}</span></div>`; }).join('')}</div></div>
     </div>
-    <p class="note">Sleepy 1.1 · dữ liệu lưu tại ~/.config/Sleepy/sleepy.json</p>
+    </div>
+    <p class="note ver">Sleepy 1.1 · dữ liệu lưu tại ~/.config/Sleepy/sleepy.json</p>
   </section>`;
 }
 
@@ -586,6 +592,7 @@ document.addEventListener('click', async (e) => {
   if (ds.chip) { const v = +ds.chip; draft.countdown = { h: Math.floor(v / 60), m: v % 60, s: 0 }; saveDraft(); return render(); }
   if (ds.chipAt) { const [h, m] = ds.chipAt.split(':').map(Number); draft.at = { h, m }; saveDraft(); return render(); }
   if (ds.post) return sleepy.postpone(+ds.post);
+  if (ds.stab) { setTab = ds.stab; return render(); }
   if (ds.page) { const [k, d] = ds.page.split(':'); pages[k].page += +d; return render(); }
   if (ds.run) { const p = st.presets.find((x) => x.id === ds.run); if (p) { await start(p.action, p.trigger, `preset:${p.id}`); view = 'timer'; render(); } return; }
   if (ds.delPreset) return sleepy.setPresets(st.presets.filter((p) => p.id !== ds.delPreset));

@@ -494,21 +494,6 @@ html.dragging-dial .dial:focus-visible { outline-color: transparent; }
 .bgroup button, .tu span, .act { text-transform: capitalize; }
 .brand small { text-transform: capitalize; }
 
-/* ---------- Chuyển màn (View Transitions API) ----------
-   Chỉ vùng nội dung chính chuyển cảnh; phần còn lại (thanh bên, bầu trời) hiện trực tiếp trạng thái mới
-   để chỉ báo ở thanh bên vẫn trượt bằng transition CSS thường. */
-.main { view-transition-name: main; }
-::view-transition-old(root) { animation: none; opacity: 0; }
-::view-transition-new(root) { animation: none; }
-::view-transition-group(main) { animation-duration: .27s; }
-::view-transition-old(main) { animation: vt-out .12s cubic-bezier(.4, 0, 1, 1) both; }
-::view-transition-new(main) { animation: vt-in .22s var(--ease) .05s both; }
-@keyframes vt-out { to { opacity: 0; transform: translateY(-4px); } }
-@keyframes vt-in { from { opacity: 0; transform: translateY(8px); } }
-@media (prefers-reduced-motion: reduce) {
-  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
-}
-
 /* ---------- Chuyển trạng thái mượt ----------
    Nút được giữ nguyên qua các lần vẽ lại (morph.js), nên đổi lựa chọn giờ chạy bằng transition CSS. */
 .day { transition: background .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease); }

@@ -159,7 +159,8 @@ function renderMini() {
 }
 // Mọi lần vẽ lại đều "vá" DOM tại chỗ (xem morph.js): nút giữ nguyên nên transition CSS chạy
 // mượt. Chỉ khi thật sự đổi màn (trang ở thanh bên, hoặc thiết lập ↔ đang chạy) mới có chuyển cảnh:
-// dùng View Transitions API nếu có, không thì cho màn mới mờ dần lên bằng Web Animations.
+// màn mới mờ dần lên bằng Web Animations. Không dùng View Transitions API: WebKitGTK 2.52 bị
+// segfault khi chuyển cảnh kiểu này.
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
 let shownKey = null;
 const viewKey = () => (view === 'timer' ? (snap?.job ? 'running' : 'setup') : view);
@@ -168,7 +169,6 @@ function render() {
   const key = viewKey(), first = shownKey === null, swap = !first && key !== shownKey;
   shownKey = key;
   const motion = !reduceMotion.matches;
-  if (swap && motion && document.startViewTransition) { document.startViewTransition(() => draw()); return; }
   draw();
   if ((swap || first) && motion) {
     $('#main').firstElementChild?.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }],

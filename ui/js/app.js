@@ -92,11 +92,101 @@ let draftTimer;
 function saveDraft() { clearTimeout(draftTimer); draftTimer = setTimeout(() => sleepy.setDraft(draft), 400); }
 
 // ---------- Tiện ích ----------
-function toast(msg, err = false) {
+let lastUndo = null;
+function toast(msg, opts = false) {
+  const o = typeof opts === 'boolean' ? { err: opts } : (opts || {});
   const t = $('#toast');
-  t.textContent = msg; t.className = 'toast show' + (err ? ' err' : '');
-  clearTimeout(t._t); t._t = setTimeout(() => { t.className = 'toast'; }, 2600);
+  if (o.undo) lastUndo = o.undo;
+  t.setAttribute('role', o.err ? 'alert' : 'status');
+  t.innerHTML = `<span class="toast-msg">${esc(msg)}</span>` +
+    (o.action ? `<button class="toast-act" data-toast-act>${esc(o.action)}</button>` : '') +
+    `<button class="toast-x" data-toast-close aria-label="Đóng thông báo">×</button>`;
+  t._act = o.onAction || o.undo || null;
+  t.className = 'toast show' + (o.err ? ' err' : '') + (o.action ? ' has-act' : '');
+  clearTimeout(t._t);
+  t._t = setTimeout(() => { t.className = 'toast'; }, o.action ? 6000 : 4000);
 }
+function runUndo() {
+  if (!lastUndo) return false;
+  const fn = lastUndo;
+  lastUndo = null;
+  $('#toast').className = 'toast';
+  fn();
+  return true;
+}
+
+// Popover xác nhận nhẹ neo vào nút kích hoạt (không dùng window.confirm)
+let confirmPop = null;
+function closeConfirm(refocus = false) {
+  if (!confirmPop) return;
+  const { el, trigger } = confirmPop;
+  confirmPop = null;
+  el.remove();
+  if (refocus && trigger?.isConnected) trigger.focus({ preventScroll: true });
+}
+function openConfirm(trigger, { title, confirmLabel, danger = true, onConfirm }) {
+  closeConfirm(false);
+  const pop = document.createElement('div');
+  pop.className = 'cpop';
+  pop.setAttribute('role', 'dialog');
+  pop.setAttribute('aria-modal', 'false');
+  pop.innerHTML = `<div class="cpop-t">${esc(title)}</div><div class="cpop-a">
+    <button class="btn ghost small" data-cpop-cancel>Huỷ</button>
+    <button class="btn small ${danger ? 'danger-solid' : 'primary'}" data-cpop-ok>${esc(confirmLabel)}</button>
+  </div>`;
+  document.body.appendChild(pop);
+  const r = trigger.getBoundingClientRect();
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  const up = r.top > ph + 16 && (window.innerHeight - r.bottom < ph + 16 || !!trigger.closest('.bar, .controls'));
+  const top = up ? r.top - ph - 8 : r.bottom + 8;
+  const left = Math.max(8, Math.min(r.right - pw, window.innerWidth - pw - 8));
+  pop.style.left = `${Math.round(left)}px`;
+  pop.style.top = `${Math.round(Math.max(8, Math.min(top, window.innerHeight - ph - 8)))}px`;
+  confirmPop = { el: pop, trigger, onConfirm };
+  pop.querySelector('[data-cpop-cancel]').focus({ preventScroll: true });
+  pop.addEventListener('click', (e) => {
+    if (e.target.closest('[data-cpop-cancel]')) closeConfirm(true);
+    else if (e.target.closest('[data-cpop-ok]')) { const fn = onConfirm; closeConfirm(false); fn(); }
+  });
+  pop.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); closeConfirm(true); }
+    else if (e.key === 'Tab') {
+      const btns = [...pop.querySelectorAll('button')];
+      const idx = btns.indexOf(document.activeElement);
+      e.preventDefault();
+      btns[(idx + (e.shiftKey ? -1 : 1) + btns.length) % btns.length].focus();
+    }
+  });
+}
+document.addEventListener('pointerdown', (e) => {
+  if (confirmPop && !confirmPop.el.contains(e.target) && !confirmPop.trigger.contains(e.target)) closeConfirm(false);
+  const hb = e.target.closest?.('[data-hold-now]');
+  if (!hb || e.button !== 0) return;
+  const startAt = performance.now();
+  const DUR = 800;
+  let raf = 0;
+  const stop = (done) => {
+    cancelAnimationFrame(raf);
+    hb.style.removeProperty('--hold');
+    hb.classList.remove('holding');
+    removeEventListener('pointerup', onEnd);
+    removeEventListener('pointercancel', onEnd);
+    hb.removeEventListener('pointerleave', onEnd);
+    if (done) { hb._heldDone = true; sleepy.now(); }
+  };
+  const onEnd = () => stop(false);
+  hb.classList.add('holding');
+  const tick = (now) => {
+    const p = Math.min(1, (now - startAt) / DUR);
+    hb.style.setProperty('--hold', `${(p * 100).toFixed(1)}%`);
+    if (p >= 1) stop(true);
+    else raf = requestAnimationFrame(tick);
+  };
+  raf = requestAnimationFrame(tick);
+  addEventListener('pointerup', onEnd);
+  addEventListener('pointercancel', onEnd);
+  hb.addEventListener('pointerleave', onEnd);
+}, true);
 function applyTheme() {
   const pref = st?.settings.theme || 'dark';
   const dark = pref === 'dark' || (pref === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
@@ -590,7 +680,7 @@ function viewRunning() {
       <div class="center"><div class="icon">${Icons[j.action]}</div><div class="big num" id="big" data-own></div>
         <div class="what" id="what" data-own></div><div class="src">${esc(sourceLabel(j.source))}</div></div></div>
     <div class="status-line" id="status-line" data-own></div>
-    <div class="controls rise d2" id="controls">${j.phase === 'countdown' ? `<div class="bgroup"><span>Hoãn</span><button data-post="5">5 phút</button><button data-post="15">15 phút</button><button data-post="60">1 giờ</button></div>` : ''}<button class="btn ghost" data-key="now" data-do="now">Thực hiện ngay</button><button class="btn danger" data-key="cancel" data-do="cancel">Huỷ hẹn</button></div>
+    <div class="controls rise d2" id="controls">${j.phase === 'countdown' ? `<div class="bgroup"><button data-post="5">+5 phút</button><button data-post="15">+15 phút</button><button data-post="60">+1 giờ</button></div>` : ''}<button class="btn danger-ghost hold-btn" data-key="now" data-hold-now title="Nhấn giữ 0.8 giây (hoặc Enter/Space) để thực hiện ngay">${esc(a)} ngay…</button><button class="btn primary" data-key="cancel" data-do="cancel">Huỷ hẹn giờ</button></div>
     ${st.settings.dryRun ? '<div class="dry">Chế độ thử: chỉ hiển thị cảnh báo, không thực hiện hành động</div>' : ''}
   </section>`;
 }
@@ -1026,7 +1116,7 @@ function viewHistory() {
   }).join('');
   return `<section class="view" data-key="v-history">
     <div class="head"><div><div class="eyebrow">Nhật ký</div><h1>Lịch sử hoạt động</h1></div>
-      ${st.history.length ? '<button class="btn ghost small" data-do="hist-clear">Xoá nhật ký</button>' : ''}</div>
+      ${st.history.length ? '<button class="btn ghost small" data-do="hist-clear">Xoá nhật ký…</button>' : ''}</div>
     <div class="fit" data-fit="history">${rows ? `<table class="hist"><colgroup><col class="c-time"><col><col class="c-src"><col class="c-res"></colgroup>
       <thead><tr><th>Thời gian</th><th>Hành động</th><th class="c-src">Nguồn</th><th>Kết quả</th></tr></thead><tbody>${rows}</tbody></table>`
       : '<div class="empty">Chưa có dữ liệu hoạt động.</div>'}</div>
@@ -1081,6 +1171,18 @@ document.addEventListener('click', async (e) => {
   const t = e.target.closest('button, [data-rename], .mini');
   if (!t) return;
   const ds = t.dataset;
+  if ('toastClose' in ds) { $('#toast').className = 'toast'; return; }
+  if ('toastAct' in ds) { const fn = $('#toast')._act; $('#toast').className = 'toast'; if (fn) fn(); return; }
+  if ('holdNow' in ds) {
+    if (t._heldDone) { t._heldDone = false; return; }
+    if (e.detail === 0) {
+      const a = snap?.job ? S.ACTIONS[snap.job.action].label : 'Thực hiện';
+      openConfirm(t, { title: `${a} ngay?`, confirmLabel: a, danger: true, onConfirm: () => sleepy.now() });
+    } else {
+      toast('Nhấn giữ 0.8 giây để thực hiện ngay.');
+    }
+    return;
+  }
   if (ds.win) return sleepy.win(ds.win);
   if (ds.view) { if (view === ds.view) return; view = ds.view; savingPreset = false; renaming = null; if (view === 'timer' && draft.type === 'process') loadProcs(); return render(); }
   if (ds.action) { if (draft.action === ds.action) return; draft.action = ds.action; saveDraft(); return render(); }
@@ -1101,7 +1203,12 @@ document.addEventListener('click', async (e) => {
   if (ds.plFilter) { playlistFilter = ds.plFilter; playlistPage = 0; return render(); }
   if (ds.apreset) { focusedSnd = 'rain'; return Ambient.applyPreset(ds.apreset); }
   if (ds.cmix) { focusedSnd = 'rain'; return Ambient.applyCustomMix(ds.cmix); }
-  if (ds.delCmix) return Ambient.deleteMix(ds.delCmix);
+  if (ds.delCmix) {
+    const m = (st.mixPresets || []).find((x) => x.id === ds.delCmix);
+    await Ambient.deleteMix(ds.delCmix);
+    if (m) toast(`Đã xoá bộ mix "${m.name}".`);
+    return;
+  }
   if (ds.yt) {
     try {
       if (ds.yt === 'hide') await Ambient.ytHide();
@@ -1116,7 +1223,18 @@ document.addEventListener('click', async (e) => {
   if (ds.stab) { setTab = ds.stab; return render(); }
   if (ds.page) { const [k, d] = ds.page.split(':'); pages[k].page += +d; return render(); }
   if (ds.run) { const p = st.presets.find((x) => x.id === ds.run); if (p) { await start(p.action, p.trigger, `preset:${p.id}`); view = 'timer'; render(); } return; }
-  if (ds.delPreset) return sleepy.setPresets(st.presets.filter((p) => p.id !== ds.delPreset));
+  if (ds.delPreset) {
+    const prev = [...st.presets];
+    const removed = prev.find((p) => p.id === ds.delPreset);
+    await sleepy.setPresets(prev.filter((p) => p.id !== ds.delPreset));
+    if (removed) {
+      toast(`Đã xoá preset "${removed.name}".`, {
+        action: 'Hoàn tác',
+        undo: () => sleepy.setPresets(prev).then(() => toast(`Đã khôi phục "${removed.name}".`)),
+      });
+    }
+    return;
+  }
   if (ds.set) {
     try {
       return await sleepy.setSettings({ [ds.set]: JSON.parse(ds.val) });
@@ -1130,15 +1248,42 @@ document.addEventListener('click', async (e) => {
     return sleepy.setSchedules(st.schedules.map((s) => s.id !== id ? s : { ...s, days: s.days.includes(+d) ? s.days.filter((x) => x !== +d) : [...s.days, +d], lastArmed: 0 }));
   }
   if (ds.stoggle) return sleepy.setSchedules(st.schedules.map((s) => s.id === ds.stoggle ? { ...s, enabled: !s.enabled, lastArmed: 0 } : s));
-  if (ds.sdel) return sleepy.setSchedules(st.schedules.filter((s) => s.id !== ds.sdel));
+  if (ds.sdel) {
+    const prev = [...st.schedules];
+    const removed = prev.find((s) => s.id === ds.sdel);
+    await sleepy.setSchedules(prev.filter((s) => s.id !== ds.sdel));
+    if (removed) {
+      toast(`Đã xoá lịch ${removed.time}.`, {
+        action: 'Hoàn tác',
+        undo: () => sleepy.setSchedules(prev).then(() => toast(`Đã khôi phục lịch ${removed.time}.`)),
+      });
+    }
+    return;
+  }
   switch (ds.do) {
     case 'start': return start(draft.action, trigger(), 'manual');
-    case 'cancel': await sleepy.cancel(); return toast('Đã huỷ hẹn giờ.');
+    case 'cancel': {
+      const prevJob = snap?.job ? { action: snap.job.action, trigger: snap.job.trigger, source: snap.job.source } : null;
+      await sleepy.cancel();
+      return toast('Đã huỷ hẹn giờ.', prevJob ? {
+        action: 'Hoàn tác',
+        undo: () => start(prevJob.action, prevJob.trigger, prevJob.source),
+      } : false);
+    }
     case 'now': return sleepy.now();
     case 'preset-new': savingPreset = true; return render();
     case 'preset-cancel': savingPreset = false; return render();
     case 'preset-save': return savePreset();
-    case 'hist-clear': return sleepy.clearHistory();
+    case 'hist-clear': {
+      const n = st.history.length;
+      if (!n) return;
+      return openConfirm(t, {
+        title: `Xoá ${n} mục nhật ký?`,
+        confirmLabel: `Xoá ${n} mục`,
+        danger: true,
+        onConfirm: () => sleepy.clearHistory().then(() => toast(`Đã xoá ${n} mục nhật ký.`)),
+      });
+    }
     case 'snd-play': return Ambient.togglePlay();
     case 'snd-skip': focusedSnd = 'lofi'; return Ambient.skipSong();
     case 'snd-prev': focusedSnd = 'lofi'; return Ambient.prevSong();
@@ -1256,6 +1401,18 @@ document.addEventListener('keydown', (e) => {
   if (t.dataset?.renameInput) { if (e.key === 'Enter') t.blur(); if (e.key === 'Escape') { renaming = null; render(); } return; }
   if (t.id === 'preset-name') { if (e.key === 'Enter') savePreset(); if (e.key === 'Escape') { savingPreset = false; render(); } return; }
   if (t.id === 'mix-name') { if (e.key === 'Enter') $('[data-do="mix-save"]')?.click(); if (e.key === 'Escape') { savingMix = false; render(); } return; }
+  if (e.ctrlKey && e.key.toLowerCase() === 'z' && !['INPUT', 'TEXTAREA'].includes(t.tagName)) {
+    if (runUndo()) { e.preventDefault(); return; }
+  }
+  if (e.key === 'Escape' && view === 'timer' && snap?.job && !confirmPop && !Dropdown.isOpen()) {
+    e.preventDefault();
+    const prevJob = { action: snap.job.action, trigger: snap.job.trigger, source: snap.job.source };
+    sleepy.cancel().then(() => toast('Đã huỷ hẹn giờ.', {
+      action: 'Hoàn tác',
+      undo: () => start(prevJob.action, prevJob.trigger, prevJob.source),
+    }));
+    return;
+  }
   if (e.ctrlKey && /^[1-6]$/.test(e.key)) { view = VIEWS[+e.key - 1][0]; savingPreset = false; render(); return; }
   if (e.key === 'Enter' && view === 'timer' && !snap?.job && t.tagName !== 'BUTTON') start(draft.action, trigger(), 'manual');
 });

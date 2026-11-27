@@ -62,6 +62,7 @@ pub fn run() {
             audio_pick_files,
             audio_remove_custom_track,
             yt_open,
+            yt_set_bounds,
             yt_hide,
             yt_close,
             yt_status,

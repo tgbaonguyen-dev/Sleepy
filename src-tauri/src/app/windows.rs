@@ -4,8 +4,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 use serde::Serialize;
+use tauri::webview::WebviewBuilder;
 use tauri::{
-    AppHandle, LogicalSize, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window, WindowEvent,
+    AppHandle, LogicalPosition, LogicalSize, Manager, Rect, Webview, WebviewUrl, WebviewWindowBuilder,
+    Window, WindowEvent,
 };
 
 use super::AppState;
@@ -13,10 +15,6 @@ use super::AppState;
 const WARN_W: f64 = 460.0;
 const WARN_H: f64 = 250.0;
 const MARGIN: f64 = 14.0;
-const YT_FULL_W: f64 = 980.0;
-const YT_FULL_H: f64 = 680.0;
-const YT_MINI_W: f64 = 480.0;
-const YT_MINI_H: f64 = 270.0;
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -30,13 +28,15 @@ pub struct YtMediaState {
 }
 
 #[derive(Default)]
-struct YtThumbCache {
+struct YtMetaCache {
     video_id: String,
+    title: Option<String>,
     data_url: Option<String>,
 }
 
-static YT_CACHE: Mutex<Option<YtThumbCache>> = Mutex::new(None);
+static YT_CACHE: Mutex<Option<YtMetaCache>> = Mutex::new(None);
 static YT_VIDEO_ONLY: AtomicBool = AtomicBool::new(false);
+static YT_VISIBLE: AtomicBool = AtomicBool::new(false);
 
 pub fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
@@ -109,52 +109,93 @@ pub fn close_warning(app: &AppHandle) {
     }
 }
 
-pub fn open_youtube(app: &AppHandle, raw_url: &str) -> Result<String, String> {
+pub fn open_youtube(
+    app: &AppHandle,
+    raw_url: &str,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+) -> Result<String, String> {
     let parsed = tauri::Url::parse(raw_url).map_err(|e| format!("URL không hợp lệ: {e}"))?;
     let host = parsed.host_str().unwrap_or("");
     if !matches!(host, "music.youtube.com" | "www.youtube.com") {
         return Err("Chỉ hỗ trợ YouTube và YouTube Music".into());
     }
 
-    if let Some(w) = app.get_webview_window("youtube") {
-        let current_host = w.url().ok().and_then(|u| u.host_str().map(|s| s.to_string()));
+    let pos = LogicalPosition::new(x.max(0.0), y.max(0.0));
+    let size = LogicalSize::new(w.max(200.0), h.max(120.0));
+
+    if let Some(wv) = app.get_webview("youtube") {
+        let current_host = wv.url().ok().and_then(|u| u.host_str().map(|s| s.to_string()));
         if current_host.as_deref() != Some(host) {
-            w.navigate(parsed).map_err(|e| e.to_string())?;
+            wv.navigate(parsed).map_err(|e| e.to_string())?;
         }
-        w.unminimize().ok();
-        w.show().ok();
-        w.set_focus().ok();
+        wv.set_bounds(Rect {
+            position: pos.into(),
+            size: size.into(),
+        })
+        .ok();
+        wv.show().ok();
+        YT_VISIBLE.store(true, Ordering::Relaxed);
+        apply_video_only_script(&wv, YT_VIDEO_ONLY.load(Ordering::Relaxed));
         return Ok("visible".into());
     }
 
-    WebviewWindowBuilder::new(app, "youtube", WebviewUrl::External(parsed))
-        .title("Sleepy | YouTube Audio")
-        .inner_size(YT_FULL_W, YT_FULL_H)
-        .decorations(true)
-        .center()
-        .build()
-        .map_err(|e| format!("Không mở được cửa sổ YouTube: {e}"))?;
+    let main_win = app
+        .get_window("main")
+        .ok_or_else(|| "Không tìm thấy cửa sổ chính".to_string())?;
+    let builder = WebviewBuilder::new("youtube", WebviewUrl::External(parsed));
+    let wv = main_win
+        .add_child(builder, pos, size)
+        .map_err(|e| format!("Không nhúng được khung YouTube: {e}"))?;
+    YT_VISIBLE.store(true, Ordering::Relaxed);
     YT_VIDEO_ONLY.store(false, Ordering::Relaxed);
+    wv.show().ok();
     Ok("visible".into())
 }
 
+pub fn set_youtube_bounds(app: &AppHandle, x: f64, y: f64, w: f64, h: f64, visible: bool) -> String {
+    let Some(wv) = app.get_webview("youtube") else {
+        YT_VISIBLE.store(false, Ordering::Relaxed);
+        return "closed".into();
+    };
+    if visible && w >= 60.0 && h >= 60.0 {
+        wv.set_bounds(Rect {
+            position: LogicalPosition::new(x.max(0.0), y.max(0.0)).into(),
+            size: LogicalSize::new(w, h).into(),
+        })
+        .ok();
+        wv.show().ok();
+        YT_VISIBLE.store(true, Ordering::Relaxed);
+        "visible".into()
+    } else {
+        wv.hide().ok();
+        YT_VISIBLE.store(false, Ordering::Relaxed);
+        "hidden".into()
+    }
+}
+
 pub fn hide_youtube(app: &AppHandle) -> String {
-    if let Some(w) = app.get_webview_window("youtube") {
-        w.hide().ok();
+    if let Some(wv) = app.get_webview("youtube") {
+        wv.hide().ok();
+        YT_VISIBLE.store(false, Ordering::Relaxed);
         return "hidden".into();
     }
+    YT_VISIBLE.store(false, Ordering::Relaxed);
     "closed".into()
 }
 
 pub fn close_youtube(app: &AppHandle) -> String {
     YT_VIDEO_ONLY.store(false, Ordering::Relaxed);
-    if let Some(w) = app.get_webview_window("youtube") {
-        w.destroy().ok();
+    YT_VISIBLE.store(false, Ordering::Relaxed);
+    if let Some(wv) = app.get_webview("youtube") {
+        wv.close().ok();
     }
     "closed".into()
 }
 
-fn apply_video_only_script(w: &WebviewWindow, enabled: bool) {
+fn apply_video_only_script(wv: &Webview, enabled: bool) {
     let js = if enabled {
         r#"(() => {
   const CSS = `
@@ -199,46 +240,27 @@ fn apply_video_only_script(w: &WebviewWindow, enabled: bool) {
   window.dispatchEvent(new Event('resize'));
 })()"#
     };
-    w.eval(js).ok();
+    wv.eval(js).ok();
 }
 
 pub fn set_youtube_video_only(app: &AppHandle, enabled: bool) -> Result<bool, String> {
-    if app.get_webview_window("youtube").is_none() {
-        if !enabled {
-            YT_VIDEO_ONLY.store(false, Ordering::Relaxed);
-            return Ok(false);
-        }
-        open_youtube(app, "https://www.youtube.com")?;
-    }
     YT_VIDEO_ONLY.store(enabled, Ordering::Relaxed);
-    if let Some(w) = app.get_webview_window("youtube") {
-        if enabled {
-            w.unminimize().ok();
-            w.show().ok();
-            w.set_size(LogicalSize::new(YT_MINI_W, YT_MINI_H)).ok();
-            w.set_always_on_top(true).ok();
-            w.set_title("Sleepy | Khung video").ok();
-        } else {
-            w.set_always_on_top(false).ok();
-            w.set_size(LogicalSize::new(YT_FULL_W, YT_FULL_H)).ok();
-            w.set_title("Sleepy | YouTube Audio").ok();
-        }
-        apply_video_only_script(&w, enabled);
-        w.set_focus().ok();
+    if let Some(wv) = app.get_webview("youtube") {
+        apply_video_only_script(&wv, enabled);
     }
     Ok(enabled)
 }
 
 pub fn youtube_status(app: &AppHandle) -> String {
-    match app.get_webview_window("youtube") {
-        Some(w) if w.is_visible().unwrap_or(false) => "visible".into(),
+    match app.get_webview("youtube") {
+        Some(_) if YT_VISIBLE.load(Ordering::Relaxed) => "visible".into(),
         Some(_) => "hidden".into(),
         None => "closed".into(),
     }
 }
 
 pub fn youtube_control(app: &AppHandle, action: &str) -> Result<(), String> {
-    let Some(w) = app.get_webview_window("youtube") else {
+    let Some(wv) = app.get_webview("youtube") else {
         return Ok(());
     };
     let js = match action {
@@ -253,12 +275,12 @@ pub fn youtube_control(app: &AppHandle, action: &str) -> Result<(), String> {
         }
         _ => return Ok(()),
     };
-    w.eval(js).map_err(|e| e.to_string())
+    wv.eval(js).map_err(|e| e.to_string())
 }
 
 pub fn youtube_media(app: &AppHandle) -> YtMediaState {
     let video_only = YT_VIDEO_ONLY.load(Ordering::Relaxed);
-    let Some(w) = app.get_webview_window("youtube") else {
+    let Some(wv) = app.get_webview("youtube") else {
         return YtMediaState {
             status: "closed".into(),
             title: None,
@@ -269,14 +291,14 @@ pub fn youtube_media(app: &AppHandle) -> YtMediaState {
         };
     };
 
-    let status = if w.is_visible().unwrap_or(false) {
+    let status = if YT_VISIBLE.load(Ordering::Relaxed) {
         "visible"
     } else {
         "hidden"
     }
     .to_string();
 
-    let url = w.url().ok();
+    let url = wv.url().ok();
     let host = url
         .as_ref()
         .and_then(|u| u.host_str())
@@ -288,23 +310,6 @@ pub fn youtube_media(app: &AppHandle) -> YtMediaState {
     }
     .to_string();
 
-    let raw_title = w.title().ok().unwrap_or_default();
-    let cleaned = raw_title
-        .trim()
-        .trim_end_matches(" - YouTube Music")
-        .trim_end_matches(" - YouTube")
-        .trim();
-    let title = if cleaned.is_empty()
-        || cleaned == "YouTube"
-        || cleaned == "YouTube Music"
-        || cleaned == "Sleepy | YouTube Audio"
-        || cleaned == "Sleepy | Khung video"
-    {
-        None
-    } else {
-        Some(cleaned.to_string())
-    };
-
     let video_id = url.as_ref().and_then(|u| {
         u.query_pairs()
             .find(|(k, _)| k == "v")
@@ -312,7 +317,10 @@ pub fn youtube_media(app: &AppHandle) -> YtMediaState {
             .filter(|id| !id.is_empty() && id.len() <= 20)
     });
 
-    let artwork = video_id.as_deref().and_then(fetch_yt_thumbnail_cached);
+    let (title, artwork) = match video_id.as_deref() {
+        Some(id) => fetch_yt_meta_cached(id),
+        None => (None, None),
+    };
 
     YtMediaState {
         status,
@@ -324,15 +332,26 @@ pub fn youtube_media(app: &AppHandle) -> YtMediaState {
     }
 }
 
-fn fetch_yt_thumbnail_cached(video_id: &str) -> Option<String> {
+fn fetch_yt_meta_cached(video_id: &str) -> (Option<String>, Option<String>) {
     {
         let guard = YT_CACHE.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(cache) = guard.as_ref() {
             if cache.video_id == video_id {
-                return cache.data_url.clone();
+                return (cache.title.clone(), cache.data_url.clone());
             }
         }
     }
+
+    // Lấy tên bài hát qua YouTube oEmbed (nhanh, sạch, không phụ thuộc DOM).
+    let oembed_url =
+        format!("https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json");
+    let title = std::process::Command::new("curl")
+        .args(["-fsSL", "--max-time", "3", &oembed_url])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| serde_json::from_slice::<serde_json::Value>(&o.stdout).ok())
+        .and_then(|v| v.get("title").and_then(|t| t.as_str()).map(|s| s.to_string()));
 
     // Ưu tiên maxresdefault (1280x720, không viền đen), sau đó sddefault rồi hqdefault.
     let candidates = [
@@ -353,11 +372,12 @@ fn fetch_yt_thumbnail_cached(video_id: &str) -> Option<String> {
     }
 
     let mut guard = YT_CACHE.lock().unwrap_or_else(|e| e.into_inner());
-    *guard = Some(YtThumbCache {
+    *guard = Some(YtMetaCache {
         video_id: video_id.to_string(),
+        title: title.clone(),
         data_url: data_url.clone(),
     });
-    data_url
+    (title, data_url)
 }
 
 fn encode_base64(input: &[u8]) -> String {

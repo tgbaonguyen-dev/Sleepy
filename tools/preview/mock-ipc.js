@@ -128,6 +128,7 @@
     audio_pick_files: () => 0,
     audio_remove_custom_track: () => {},
     yt_open: () => 'visible',
+    yt_set_bounds: ({ visible }) => (visible ? 'visible' : 'hidden'),
     yt_hide: () => 'hidden',
     yt_close: () => 'closed',
     yt_status: () => 'closed',

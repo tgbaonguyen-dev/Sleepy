@@ -1,6 +1,7 @@
 //! Tầng ứng dụng: nối engine với Tauri (lệnh IPC, sự kiện, khay, cửa sổ, thông báo).
 
 mod autostart;
+pub mod commands;
 mod dispatch;
 mod runtime;
 mod state;

@@ -5,6 +5,7 @@ pub mod engine;
 pub mod sensors;
 pub mod store;
 pub mod system;
+mod app;
 
 pub fn run() {
     tauri::Builder::default()

@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 pub use model::{Data, HistoryEntry, Preset, Schedule, Settings};
 
-const FILE_NAME: &str = "nghi.json";
+const FILE_NAME: &str = "sleepy.json";
 const HISTORY_LIMIT: usize = 200;
 
 pub struct Store {
@@ -19,7 +19,7 @@ pub struct Store {
 }
 
 impl Store {
-    /// Đọc từ `dir/nghi.json`; file chưa có hoặc hỏng thì dùng mặc định.
+    /// Đọc từ `dir/sleepy.json`; file chưa có hoặc hỏng thì dùng mặc định.
     pub fn open(dir: &Path) -> io::Result<Self> {
         fs::create_dir_all(dir)?;
         let path = dir.join(FILE_NAME);
@@ -79,7 +79,7 @@ mod tests {
 
     #[test]
     fn round_trips_through_disk() {
-        let dir = std::env::temp_dir().join(format!("nghi-test-{}", new_id()));
+        let dir = std::env::temp_dir().join(format!("sleepy-test-{}", new_id()));
         let mut s = Store::open(&dir).unwrap();
         assert_eq!(s.data.presets.len(), 4, "có preset mặc định");
         s.data.settings.dry_run = true;

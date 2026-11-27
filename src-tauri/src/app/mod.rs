@@ -25,7 +25,7 @@ pub use windows::{on_window_event, show_main};
 
 /// Khởi tạo khi Tauri đã sẵn sàng: đọc dữ liệu, dựng khay, mở cửa sổ, chạy vòng lặp nền.
 pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    let dir = match std::env::var_os("NGHI_DATA") {
+    let dir = match std::env::var_os("SLEEPY_DATA") {
         Some(d) => PathBuf::from(d),
         None => app.path().app_config_dir()?,
     };

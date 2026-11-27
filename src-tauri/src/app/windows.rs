@@ -163,6 +163,7 @@ fn position_youtube_overlay(app: &AppHandle, wv: &Webview, x: f64, y: f64, w: f6
             yt_widget.hide();
             yt_widget.set_size_request(0, 0);
         }
+        yt_widget.queue_resize();
     });
 }
 

@@ -206,7 +206,20 @@ function syncIndicators() {
   });
 }
 let resizeRaf = 0;
-addEventListener('resize', () => { if (!st) return; cancelAnimationFrame(resizeRaf); resizeRaf = requestAnimationFrame(() => draw()); });
+addEventListener('resize', () => {
+  if (!st) return;
+  cancelAnimationFrame(resizeRaf);
+  resizeRaf = requestAnimationFrame(() => {
+    draw();
+    requestAnimationFrame(syncYtEmbed);
+  });
+});
+if (typeof ResizeObserver !== 'undefined') {
+  const ytRo = new ResizeObserver(() => {
+    if (st && Ambient.yt.status !== 'closed') requestAnimationFrame(syncYtEmbed);
+  });
+  ytRo.observe($('#main'));
+}
 document.fonts?.ready.then(() => st && syncIndicators());
 
 // ---------- Phân trang ----------
@@ -1119,7 +1132,14 @@ document.addEventListener('click', async (e) => {
   const t = e.target.closest('button, [data-rename], .mini');
   if (!t) return;
   const ds = t.dataset;
-  if (ds.win) return sleepy.win(ds.win);
+  if (ds.win) {
+    await sleepy.win(ds.win);
+    if (ds.win === 'max') {
+      setTimeout(syncYtEmbed, 80);
+      setTimeout(syncYtEmbed, 220);
+    }
+    return;
+  }
   if (ds.view) { if (view === ds.view) return; view = ds.view; savingPreset = false; renaming = null; if (view === 'timer' && draft.type === 'process') loadProcs(); return render(); }
   if (ds.action) { if (draft.action === ds.action) return; draft.action = ds.action; saveDraft(); return render(); }
   if (ds.mode) { const type = ds.mode === 'cond' ? (draft.condType || 'idle') : ds.mode; if (draft.type === type) return; draft.type = type; saveDraft(); if (draft.type === 'process') loadProcs(); return render(); }

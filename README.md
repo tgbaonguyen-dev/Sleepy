@@ -1,13 +1,13 @@
 <p align="center"><img src="src-tauri/icons/icon.png" width="96" alt=""></p>
 
-<h1 align="center">Sleep · Nghỉ</h1>
+<h1 align="center">Sleepy</h1>
 
 <p align="center">Hẹn giờ tắt máy, ngủ, khoá màn hình cho Ubuntu — đẹp, nhẹ, viết bằng Rust.</p>
 
 ---
 
-Nghỉ thay cho qShutdown: chọn việc cần làm, chọn lúc nào, rồi để máy tự nghỉ. Không chỉ hẹn
-theo giờ, Nghỉ còn chờ được tới khi **tải xong**, **máy hết bận**, **bạn rời máy** hay **một app đóng lại**.
+Sleepy thay cho qShutdown: chọn việc cần làm, chọn lúc nào, rồi để máy tự nghỉ. Không chỉ hẹn
+theo giờ, Sleepy còn chờ được tới khi **tải xong**, **máy hết bận**, **bạn rời máy** hay **một app đóng lại**.
 
 ## Tính năng
 
@@ -25,9 +25,9 @@ theo giờ, Nghỉ còn chờ được tới khi **tải xong**, **máy hết b�
 Tải `.deb` hoặc `.AppImage` ở mục Releases / Actions artifacts, rồi:
 
 ```bash
-sudo apt install ./Nghỉ_2.0.0_amd64.deb
+sudo apt install ./Sleepy_2.0.0_amd64.deb
 # hoặc
-chmod +x Nghỉ_2.0.0_amd64.AppImage && ./Nghỉ_2.0.0_amd64.AppImage
+chmod +x Sleepy_2.0.0_amd64.AppImage && ./Sleepy_2.0.0_amd64.AppImage
 ```
 
 ## Build từ mã nguồn

@@ -1,6 +1,6 @@
 # Kiến trúc
 
-Nghỉ là ứng dụng [Tauri 2](https://tauri.app): lõi viết bằng Rust, giao diện là HTML/CSS/JS
+Sleepy là ứng dụng [Tauri 2](https://tauri.app): lõi viết bằng Rust, giao diện là HTML/CSS/JS
 tĩnh chạy trong WebKitGTK. Mọi logic (hẹn giờ, cảm biến, tắt máy, lưu dữ liệu) nằm ở Rust;
 giao diện chỉ hiển thị và gửi lệnh.
 
@@ -8,7 +8,7 @@ giao diện chỉ hiển thị và gửi lệnh.
 ┌──────────────────────── ui/ (WebKitGTK) ────────────────────────┐
 │ index.html · warning.html                                        │
 │ js/app.js   js/warning.js   js/sky.js   js/icons.js   js/shared.js│
-│ js/bridge.js  ── window.nghi ──► invoke("job_start", …)          │
+│ js/bridge.js  ── window.sleepy ► invoke("job_start", …)          │
 │                ◄── listen("tick" | "state")                      │
 └───────────────────────────────┬──────────────────────────────────┘
                                 │ IPC
@@ -29,7 +29,7 @@ giao diện chỉ hiển thị và gửi lệnh.
 | Module | Trách nhiệm | Phụ thuộc |
 |---|---|---|
 | `domain` | Kiểu dữ liệu (`Action`, `Trigger`, `Job`), định dạng và tính giờ địa phương | `serde`, `chrono` |
-| `store` | Đọc/ghi `nghi.json` nguyên tử; mặc định; nhật ký tối đa 200 dòng | `domain` |
+| `store` | Đọc/ghi `sleepy.json` nguyên tử; mặc định; nhật ký tối đa 200 dòng | `domain` |
 | `sensors` | Trait `SensorSource` + `LinuxSensors` đọc `/proc`, `/sys`, D-Bus Mutter | — |
 | `system` | Trait `PowerControl` + `Systemd` gọi `systemctl` / `loginctl`, hỏi quyền qua logind | `domain` |
 | `engine` | Toàn bộ logic hẹn giờ: bắt đầu, huỷ, hoãn, theo dõi điều kiện, lịch lặp, khôi phục | `domain`, `store`, `sensors` (qua trait) |
@@ -42,7 +42,7 @@ từng sự kiện. Nhờ vậy engine được kiểm thử đầy đủ bằng
 ## Luồng một lần hẹn
 
 1. Giao diện gọi `job_start(action, trigger)` → `Engine::start` kiểm tra và lưu `Job`.
-2. Luồng `nghi-tick` gọi `Engine::tick` mỗi giây:
+2. Luồng `sleepy-tick` gọi `Engine::tick` mỗi giây:
    - hẹn theo giờ: báo trước `warnMinutes` phút (`Event::Warn` → mở `warning.html`);
    - hẹn theo điều kiện: điều kiện phải giữ đủ lâu, sau đó đếm lùi `graceSeconds`;
    - lịch lặp: lên lịch trước `warnMinutes` phút, mỗi lần chỉ một lần.
@@ -51,8 +51,8 @@ từng sự kiện. Nhờ vậy engine được kiểm thử đầy đủ bằng
 
 ## Dữ liệu
 
-`~/.config/dev.giabao.nghi/nghi.json` (đổi bằng biến `NGHI_DATA`). Tương thích với dữ liệu của
-bản Electron cũ: các trường thiếu được điền mặc định.
+`~/.config/dev.giabao.sleepy/sleepy.json` (đổi bằng biến `SLEEPY_DATA`). Các trường thiếu trong file được điền
+giá trị mặc định, nên dữ liệu cũ vẫn đọc được.
 
 ## Kiểm thử
 

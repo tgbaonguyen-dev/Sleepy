@@ -39,7 +39,7 @@ static YT_VIDEO_ONLY: AtomicBool = AtomicBool::new(false);
 static YT_VISIBLE: AtomicBool = AtomicBool::new(false);
 
 pub fn show_main(app: &AppHandle) {
-    if let Some(w) = app.get_webview_window("main") {
+    if let Some(w) = app.get_window("main") {
         w.unminimize().ok();
         w.show().ok();
         w.set_focus().ok();
@@ -274,8 +274,12 @@ fn apply_video_only_script(wv: &Webview, enabled: bool) {
       position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important;
       max-width: 100vw !important; max-height: 100vh !important; z-index: 2147483647 !important; background: #000 !important;
     }
+    html.sleepy-vo #movie_player .html5-video-container, html.sleepy-vo #song-video .html5-video-container {
+      position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important;
+    }
     html.sleepy-vo #movie_player video, html.sleepy-vo #song-video video {
-      width: 100% !important; height: 100% !important; left: 0 !important; top: 0 !important; object-fit: contain !important;
+      position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important;
+      left: 0 !important; top: 0 !important; object-fit: contain !important;
     }
   `;
   let el = document.getElementById('sleepy-video-only');

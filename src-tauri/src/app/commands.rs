@@ -2,7 +2,7 @@
 
 use serde::Serialize;
 use serde_json::Value;
-use tauri::{AppHandle, Emitter, State, WebviewWindow};
+use tauri::{AppHandle, Emitter, State, Window};
 
 use super::state::FullState;
 use super::{autostart, dispatch, sync_keep_awake, AppState};
@@ -185,7 +185,7 @@ pub fn proc_check(state: State<'_, AppState>, name: String) -> bool {
 
 /// Nút thu nhỏ / phóng to / đóng trên thanh tiêu đề tự vẽ.
 #[tauri::command]
-pub fn win_action(window: WebviewWindow, action: String) {
+pub fn win_action(window: Window, action: String) {
     match action.as_str() {
         "min" => window.minimize().ok(),
         "max" => {

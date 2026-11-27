@@ -1,63 +1,87 @@
-<p align="center"><img src="src-tauri/icons/icon.png" width="96" alt=""></p>
+<p align="center"><img src="src-tauri/icons/icon.png" width="96" alt="Sleepy icon"></p>
 
 <h1 align="center">Sleepy</h1>
 
-<p align="center">Hẹn giờ tắt máy, ngủ, khoá màn hình cho Ubuntu — đẹp, nhẹ, viết bằng Rust.</p>
+<p align="center">A beautiful shutdown timer for Ubuntu — shut down, sleep or lock your PC on your terms. Built with Rust and Tauri.</p>
 
 ---
 
-Sleepy thay cho qShutdown: chọn việc cần làm, chọn lúc nào, rồi để máy tự nghỉ. Không chỉ hẹn
-theo giờ, Sleepy còn chờ được tới khi **tải xong**, **máy hết bận**, **bạn rời máy** hay **một app đóng lại**.
+Sleepy is a modern replacement for qShutdown. Pick what should happen, pick when, and let your
+computer rest on its own. Beyond plain timers, Sleepy can wait until a **download finishes**, the
+**CPU goes quiet**, **you step away**, or **an app closes**.
 
-## Tính năng
+> The interface is in Vietnamese.
 
-- **6 hành động:** tắt máy, khởi động lại, ngủ, ngủ đông, khoá màn hình, đăng xuất. Hành động nào
-  hệ thống không cho phép sẽ tự mờ đi.
-- **7 kiểu hẹn:** sau bao lâu · đúng giờ · không đụng máy · tải xong · máy hết bận · tắt một app · pin sắp cạn.
-- **Báo trước** bằng cửa sổ nhỏ ở góc màn hình: hoãn 5/15 phút, huỷ, làm ngay; có chuông nhẹ.
-- **Khay hệ thống:** icon là vòng đếm ngược; menu hẹn nhanh, preset, hoãn, huỷ.
-- **Preset**, **lịch lặp** theo thứ trong tuần, **nhật ký**.
-- **Hai giao diện:** Đêm (trời sao, Ngân Hà, sao băng) và Sáng (ấm, phẳng).
-- **Chế độ thử** (không tắt thật), **lệnh chạy trước** (vd. `playerctl pause`), **mở cùng máy**.
+## Features
 
-## Cài đặt
+- **Six actions** — shut down, restart, suspend, hibernate, lock screen, log out. Actions your
+  system doesn't allow are greyed out automatically (checked through logind).
+- **Seven triggers** — after a duration · at a set time · when idle · when a download finishes
+  (network below X KB/s for N minutes) · when the CPU is idle · when an app exits · when the battery runs low.
+- **Heads-up popup** in the corner of the screen before anything happens: snooze 5/15 minutes,
+  cancel, or run now, with a soft chime.
+- **System tray** — the icon is a live countdown ring; the menu offers quick timers, presets,
+  snooze and cancel.
+- **Presets**, **weekly schedules** and a **history log**.
+- **Two themes** — Night (starry sky, Milky Way, shooting stars) and Light (warm and flat).
+- **Dry-run mode** (never really shuts down), a **pre-action command** (e.g. `playerctl pause`)
+  and **launch at login**.
 
-Tải `.deb` hoặc `.AppImage` ở mục Releases / Actions artifacts, rồi:
+## Install
+
+Grab the `.deb` or `.AppImage` from Releases (or the CI artifacts), then:
 
 ```bash
 sudo apt install ./Sleepy_2.0.0_amd64.deb
-# hoặc
+# or
 chmod +x Sleepy_2.0.0_amd64.AppImage && ./Sleepy_2.0.0_amd64.AppImage
 ```
 
-## Build từ mã nguồn
+Run it from your app menu or with `sleepy`.
+
+## Build from source
 
 ```bash
-# Thư viện hệ thống (Ubuntu 22.04+)
+# System libraries (Ubuntu 22.04+)
 sudo apt install libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
-# Rust: https://rustup.rs
+# Rust toolchain: https://rustup.rs
 
-npm install          # chỉ để có Tauri CLI
-npm run dev          # chạy thử
-npm run build        # ra .deb + .AppImage trong src-tauri/target/release/bundle/
+npm install          # only for the Tauri CLI
+npm run dev          # run in development
+npm run build        # produces .deb + .AppImage in src-tauri/target/release/bundle/
 ```
 
-## Kiến trúc
+Run the checks:
 
-Lõi Rust chia tầng rõ ràng (`domain` → `engine` → `app`), logic hẹn giờ thuần và có test.
-Chi tiết ở [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+```bash
+cd src-tauri
+cargo test
+cargo clippy --all-targets -- -D warnings
+cargo fmt --check
+```
+
+## Architecture
+
+A layered Rust core (`domain` → `engine` → `app`) with pure, fully tested timer logic. The UI is
+static HTML/CSS/JS talking to Rust over Tauri IPC. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ```
 src-tauri/src/
-├── domain/    Action, Trigger, Job, định dạng thời gian
-├── engine/    bộ máy hẹn giờ + test
-├── sensors/   CPU, mạng, pin, thời gian rảnh, tiến trình
-├── system/    systemd / logind
-├── store/     lưu JSON
-└── app/       lệnh IPC, khay, cửa sổ, vòng lặp nền
-ui/            giao diện HTML/CSS/JS
+├── domain/    actions, triggers, jobs, time formatting
+├── engine/    timer engine + tests
+├── sensors/   CPU, network, battery, idle time, processes
+├── system/    systemd / logind power control
+├── store/     JSON persistence
+└── app/       IPC commands, tray, windows, background loop
+ui/            HTML/CSS/JS interface
 ```
 
-## Giấy phép
+## Data
 
-MIT © Nguyen Tran Gia Bao. Font Inter theo giấy phép SIL OFL 1.1 (`ui/fonts/inter/LICENSE`).
+Settings, presets, schedules and history live in `~/.config/dev.giabao.sleepy/sleepy.json`
+(override with the `SLEEPY_DATA` environment variable).
+
+## License
+
+MIT © Nguyen Tran Gia Bao. The bundled Be Vietnam Pro font is licensed under the SIL Open Font
+License 1.1 (`ui/fonts/be-vietnam-pro/LICENSE`).

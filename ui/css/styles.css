@@ -710,3 +710,57 @@ body { font-size: 13.5px; }
 .sinfo .days { margin-bottom: 6px; }
 .dd-row .dd-btn { height: 36px; width: 178px; }
 .dd-row .dd-ico { width: 26px; height: 26px; }
+
+/* ---------- Lịch lặp: ô giờ, ngày và nút Thêm cùng một chiều cao 40px, nhãn thẳng hàng ---------- */
+.adder { align-items: flex-end; }
+.adder > div { display: flex; flex-direction: column; }
+.adder .label { margin-bottom: 8px; }
+.adder .time-in { height: 40px; align-items: center; gap: 0; padding: 0 5px; border-radius: 12px;
+  background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 1px 2px rgba(0, 0, 0, .2); transition: border-color .18s var(--ease), box-shadow .18s var(--ease); }
+.adder .time-in:hover { border-color: rgba(255, 255, 255, .16); }
+.adder .time-in:focus-within { border-color: color-mix(in srgb, var(--moon) 55%, transparent); box-shadow: 0 0 0 3px var(--halo); }
+.adder .time-in input { width: 1.55em; height: 30px; font-size: 19px; font-weight: 500; letter-spacing: 0; border-radius: 8px; }
+.adder .time-in .sep { font-size: 17px; font-weight: 500; line-height: 30px; height: 30px; padding: 0 1px; }
+.adder .days { height: 40px; align-items: center; padding: 0 5px; gap: 3px; border-radius: 12px;
+  background: rgba(255, 255, 255, .03); border: 1px solid rgba(255, 255, 255, .07); }
+.adder .btn { height: 40px; }
+
+.day { width: 30px; height: 28px; border-radius: 8px; font-weight: 500; color: var(--ink-3); background: rgba(255, 255, 255, .04); border: 1px solid transparent;
+  transition: background .18s var(--ease), color .18s var(--ease), border-color .18s var(--ease), transform .12s var(--ease); }
+.day:hover { background: rgba(255, 255, 255, .09); color: var(--ink-2); }
+.day:active { transform: scale(.94); }
+.day.on { background: color-mix(in srgb, var(--moon) 24%, transparent); color: var(--ink); border-color: color-mix(in srgb, var(--moon) 38%, transparent); }
+.day.on:hover { background: color-mix(in srgb, var(--moon) 32%, transparent); }
+.day:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--moon); }
+.sinfo .day { height: 24px; width: 28px; font-size: 10.5px; }
+
+[data-theme='light'] .adder .time-in { background: #FFFFFF; border-color: var(--line-2); box-shadow: 0 1px 0 rgba(80, 50, 30, .04), 0 1px 3px rgba(80, 50, 30, .08); }
+[data-theme='light'] .adder .time-in:hover { border-color: #D9C8B7; }
+[data-theme='light'] .adder .time-in:focus-within { border-color: #EBA48F; box-shadow: 0 0 0 3px #FCE7DC; }
+[data-theme='light'] .adder .days { background: #F8F2EB; border-color: var(--line); }
+[data-theme='light'] .day { background: #F4EDE5; border-color: transparent; color: var(--ink-3); }
+[data-theme='light'] .adder .day { background: transparent; }
+[data-theme='light'] .day:hover, [data-theme='light'] .adder .day:hover { background: #EDE3D8; color: var(--ink-2); }
+[data-theme='light'] .day.on, [data-theme='light'] .adder .day.on { background: #FCE7DC; color: var(--moon-2); border-color: #F3CDBA; }
+[data-theme='light'] .day.on:hover { background: #F9DCCD; }
+[data-theme='light'] .day:focus-visible { box-shadow: 0 0 0 2px var(--moon); }
+
+@media (max-width: 900px) {
+  .adder .time-in input { font-size: 17px; }
+  .day { width: 27px; }
+}
+@media (max-width: 760px) {
+  .adder .btn { width: 40px; padding: 0; justify-content: center; }
+  .day { width: 25px; }
+  .adder .days { padding: 0 4px; gap: 2px; }
+}
+/* Rất hẹp: ô chọn trong từng dòng chỉ còn icon (nhãn vẫn đọc được bằng trình đọc màn hình) */
+@media (max-width: 680px) {
+  .sched .item { grid-template-columns: 76px minmax(0, 1fr) auto auto auto; gap: 10px; }
+  .dd-row .dd-btn { width: auto; padding: 0 6px 0 4px; }
+  .dd-row .dd-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .dd-row .dd-chev { margin-left: 2px; }
+  .sinfo .day { width: 25px; }
+  .sinfo .days { gap: 3px; }
+}

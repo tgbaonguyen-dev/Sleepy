@@ -1057,6 +1057,8 @@ const SND_FILTERS = [
   ['places', 'Không gian'],
 ];
 const PRIORITY_IDS = ['rain', 'thunder', 'wind', 'crickets', 'lofi', 'brown'];
+const SOUND_ART_IDS = new Set(['binaural', 'brown', 'cat', 'crickets', 'fire', 'lofi', 'mountain', 'pink', 'rain', 'rain-tent', 'river', 'subway', 'thunder', 'waves', 'wind']);
+const soundArtImg = (art) => SOUND_ART_IDS.has(art) ? `<img data-image-fallback src="img/${art}.jpg" alt="">` : '';
 let sndTab = 'sounds';
 let sndFilter = 'all';
 let sleepSound = 'none';
@@ -1116,7 +1118,7 @@ function soundsPaneHtml(A, song) {
     const ico = Icons[x.id] || Icons[x.category] || Icons.sound;
     return `<div class="snd-row ${on ? 'on' : ''} ${lit ? 'lit' : ''} ${loading ? 'loading' : ''}" data-key="snd-${x.id}">
       <button class="snd-row-btn" data-snd="${x.id}" aria-pressed="${on}" aria-label="${lit ? 'Tạm dừng' : 'Phát'} ${esc(x.name)}" title="${lit ? 'Tạm dừng' : 'Phát'} ${esc(x.name)}">
-        <span class="snd-thumb"><img data-image-fallback src="img/${x.art || x.id}.jpg" alt="">${ico}</span>
+        <span class="snd-thumb">${soundArtImg(x.art || x.id)}${ico}</span>
         <span class="snd-state-ico">${lit ? Icons.pause : Icons.play}</span><span class="snd-meta"><b title="${esc(x.name)}">${esc(x.name)}</b><small>${sub}</small></span>
       </button>
       <button class="icon-btn snd-swell ${x.swell ? 'on' : ''}" data-swell="${x.id}" aria-label="Dâng sóng" title="Dâng sóng: ${x.swell ? 'Bật' : 'Tắt'}">${Icons.wave}</button>
@@ -1146,7 +1148,7 @@ function mixesPaneHtml(A) {
     const artId = m.channels[0]?.[0] || 'lofi';
     return `<div class="mix-row ${on ? 'on' : ''} ${on && A.playing ? 'lit' : ''}">
       <button class="mix-row-btn" ${m.custom ? `data-cmix="${m.id}"` : `data-apreset="${m.id}"`}>
-        <span class="snd-thumb"><img data-image-fallback src="img/${esc(artId)}.jpg" alt="">${Icons.sound}</span>
+        <span class="snd-thumb">${soundArtImg(artId)}${Icons.sound}</span>
         <span class="pl-num num">${on && A.playing ? '▶' : m.custom ? '★' : pg.start + idx + 1}</span>
         <span class="pl-meta"><b>${esc(m.name)}</b><small>${esc(desc)}</small></span>
       </button>
@@ -1175,7 +1177,7 @@ function playlistPaneHtml(A, song) {
     const playingNow = current && lofiOn && A.playing;
     return `<div class="pl-row ${current ? 'on' : ''} ${playingNow ? 'lit' : ''}" data-key="pl-${esc(t.id)}">
       <button class="pl-row-btn" data-track="${esc(t.id)}">
-        <span class="snd-thumb"><img data-image-fallback src="img/lofi.jpg" alt="">${Icons.lofi}</span>
+        <span class="snd-thumb">${soundArtImg('lofi')}${Icons.lofi}</span>
         <span class="pl-num num">${playingNow ? '▶' : pg.start + idx + 1}</span>
         <span class="pl-meta"><b>${esc(t.title)}</b><small>${esc(t.artist)}</small></span>
       </button>
@@ -1279,7 +1281,10 @@ function viewSounds() {
   else leftBody = soundsPaneHtml(A, song);
 
   const mv = Math.round(A.master * 100);
-  const stageArtUrl = ytSynced && yt.artwork ? yt.artwork : `img/${stageChannel.art || stageChannel.id}.jpg`;
+  const stageArt = stageChannel.art || stageChannel.id;
+  const stageArtImage = ytSynced
+    ? (yt.artwork ? `<img data-image-fallback src="${esc(yt.artwork)}" alt="">` : '')
+    : soundArtImg(stageArt);
   const stageIco = ytSynced ? Icons.lofi : (Icons[stageChannel.id] || Icons[stageChannel.category] || Icons.sound);
   const stageTitle = ytSynced ? (yt.title || yt.source || 'YouTube Audio')
     : (stageChannel.id === 'lofi' && song ? song.title : stageChannel.name);
@@ -1320,7 +1325,7 @@ function viewSounds() {
     <div class="mixer-setting"><span>Nhỏ dần 10 phút cuối</span><button class="switch ${A.fade === 10 ? 'on' : ''}" data-fade-cycle aria-pressed="${A.fade === 10}"></button></div>
   </aside>`;
   const playerPanel = `<div class="snd-stage">
-    <div class="stage-disc-wrap clip-fit ${discLit ? 'lit' : ''}"><div class="stage-art ${discLit ? 'lit' : ''} ${ytSynced && yt.artwork ? 'yt-art' : ''}"><img data-image-fallback src="${esc(stageArtUrl)}" alt=""><span class="stage-ico">${stageIco}</span></div></div>
+    <div class="stage-disc-wrap clip-fit ${discLit ? 'lit' : ''}"><div class="stage-art ${discLit ? 'lit' : ''} ${ytSynced && yt.artwork ? 'yt-art' : ''}">${stageArtImage}<span class="stage-ico">${stageIco}</span></div></div>
     <div class="stage-info"><b title="${esc(stageTitle)}">${esc(stageTitle)}</b><p>${esc(stageSub)}</p></div>${subCtl}
     <div class="stage-vol"><input type="range" class="vol" data-master min="0" max="100" value="${mv}" style="--v:${mv}%" aria-label="Âm lượng chung"><div class="stage-vol-meta num"><span>Âm lượng nền ${mv}%</span><button class="stage-fade-btn ${A.fade ? 'on' : ''}" data-fade-cycle>${fadeLabel}</button></div></div>
     <div class="stage-ctl"><button class="icon-btn ${loopMode !== 'all' ? 'on' : ''}" data-do="snd-loop" aria-label="${loopLabel}" title="${loopLabel}">${loopIcon}</button><button class="icon-btn" data-do="${ytSynced ? 'yt-prev' : 'snd-prev'}" aria-label="Bài trước" title="Bài trước">${Icons.prev}</button><button class="stage-play ${discLit ? 'lit' : ''}" data-key="snd-play" data-do="${ytSynced ? 'yt-toggle' : 'snd-play'}" aria-label="${discLit ? 'Tạm dừng' : 'Phát'}">${discLit ? Icons.pause : Icons.play}</button><button class="icon-btn" data-key="skip" data-do="${ytSynced ? 'yt-next' : 'snd-skip'}" aria-label="Bài tiếp theo" title="Bài tiếp theo">${Icons.skip}</button></div>

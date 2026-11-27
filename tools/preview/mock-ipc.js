@@ -67,6 +67,7 @@
       custom: false,
     })),
     lofiProgress: 0.28,
+    lofiLoopMode: 'all',
     error: null,
     channels: [
       { id: 'rain', name: 'Mưa nhẹ', desc: 'Hạt mưa rơi đều bên hiên', category: 'rain', art: 'rain', active: true, loading: false, volume: 0.75, pan: 0, swell: false },
@@ -111,6 +112,11 @@
     audio_prev_lofi: () => { setTimeout(emitAudio); },
     audio_select_lofi: ({ id }) => { const t = audio.lofiTracks.find((x) => x.id === id); if (t) audio.lofiTrack = t; const c = audio.channels.find((x) => x.id === 'lofi'); if (c) c.active = true; audio.playing = true; setTimeout(emitAudio); },
     audio_seek_lofi: ({ ratio }) => { audio.lofiProgress = ratio; },
+    audio_cycle_lofi_loop: () => {
+      const order = ['all', 'one', 'shuffle'];
+      audio.lofiLoopMode = order[(order.indexOf(audio.lofiLoopMode) + 1) % order.length];
+      setTimeout(emitAudio);
+    },
     audio_set_pan: ({ id, pan }) => { const c = audio.channels.find((x) => x.id === id); if (c) c.pan = pan; },
     audio_toggle_swell: ({ id }) => { const c = audio.channels.find((x) => x.id === id); if (c) c.swell = !c.swell; setTimeout(emitAudio); },
     audio_shuffle_mix: () => { audio.playing = true; setTimeout(emitAudio); },

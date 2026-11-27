@@ -36,6 +36,7 @@
     audioPrevLofi: () => invoke('audio_prev_lofi'),
     audioSelectLofi: (id) => invoke('audio_select_lofi', { id }),
     audioSeekLofi: (ratio) => invoke('audio_seek_lofi', { ratio }),
+    audioCycleLofiLoop: () => invoke('audio_cycle_lofi_loop'),
     audioSetPan: (id, pan) => invoke('audio_set_pan', { id, pan }),
     audioToggleSwell: (id) => invoke('audio_toggle_swell', { id }),
     audioShuffleMix: () => invoke('audio_shuffle_mix'),

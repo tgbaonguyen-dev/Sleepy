@@ -1109,6 +1109,10 @@ body { font-size: 13.5px; }
   background: repeating-radial-gradient(circle, rgba(255, 255, 255, .04) 0 1px, transparent 1px 7px),
     conic-gradient(from 35deg, transparent 0deg, rgba(255, 255, 255, .14) 40deg, transparent 85deg, transparent 180deg, rgba(255, 255, 255, .09) 220deg, transparent 270deg); }
 .stage-art.lit { border-color: var(--moon); animation-play-state: running; }
+.stage-art.yt-art { background-size: auto 136%; background-repeat: no-repeat; }
+.stage-art.yt-art::before { background: radial-gradient(circle, transparent 48%, rgba(8, 12, 22, .24) 100%); }
+.stage-art.yt-art .stage-ico { width: 34px; height: 34px; background: rgba(12, 16, 28, .72); box-shadow: 0 0 0 4px rgba(12, 16, 28, .28); }
+.stage-art.yt-art .stage-ico svg { width: 15px; height: 15px; }
 @keyframes disc-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .stage-ico { position: relative; z-index: 1; width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center;
   background: rgba(12, 16, 28, .82); border: 2px solid rgba(255, 255, 255, .18);
@@ -1144,6 +1148,7 @@ body { font-size: 13.5px; }
 .stage-ctl { display: flex; align-items: center; justify-content: center; gap: 10px; }
 .stage-ctl .icon-btn { width: 32px; height: 32px; border-radius: 8px; color: var(--ink-2); }
 .stage-ctl .icon-btn:hover { color: var(--ink); background: var(--surface-2); }
+.stage-ctl .icon-btn.on { color: var(--moon); background: color-mix(in srgb, var(--moon) 14%, transparent); }
 .stage-ctl .icon-btn:disabled { opacity: .3; cursor: default; }
 .stage-ctl .mx-ico { width: 20px; height: 20px; display: grid; place-items: center; color: var(--ink-3); }
 .stage-ctl .mx-ico svg { width: 16px; height: 16px; }

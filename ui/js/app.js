@@ -890,6 +890,9 @@ function viewSounds() {
     : (stageChannel.id === 'lofi' && song ? `${song.artist} · Nhạc Lo-Fi` : stageChannel.desc);
   const discLit = ytSynced ? (yt.status !== 'closed') : (A.playing && activeCount > 0);
   const fadeLabel = A.fade ? `Tắt dần ${A.fade}p cuối` : 'Không tắt dần';
+  const loopMode = A.lofiLoopMode || 'all';
+  const loopIcon = loopMode === 'one' ? Icons.repeatOne : loopMode === 'shuffle' ? Icons.shuffle : Icons.repeat;
+  const loopLabel = loopMode === 'one' ? 'Lặp 1 bài' : loopMode === 'shuffle' ? 'Phát ngẫu nhiên' : 'Lặp danh sách';
   const panPct = Math.round((stageChannel.pan || 0) * 100);
   const panLabel = panPct === 0 ? 'Giữa' : panPct < 0 ? `Trái ${Math.abs(panPct)}%` : `Phải ${panPct}%`;
   const seekPct = Math.round(A.lofiProgress * 100);
@@ -901,7 +904,7 @@ function viewSounds() {
     : stageChannel.id === 'lofi'
       ? `<div class="stage-subctl">
           <input type="range" class="vol" data-seek min="0" max="100" value="${seekPct}" style="--v:${seekPct}%" aria-label="Tua bài nhạc">
-          <div class="stage-vol-meta num"><span>Tua bài</span><span>${seekPct}%</span></div>
+          <div class="stage-vol-meta num"><span>Tua bài · ${loopLabel}</span><span>${seekPct}%</span></div>
         </div>`
       : `<div class="stage-subctl">
           <input type="range" class="vol pan-slider" data-pan="${stageChannel.id}" min="-100" max="100" value="${panPct}" style="--v:${(panPct + 100) / 2}%" aria-label="Cân bằng Trái/Phải">
@@ -921,7 +924,7 @@ function viewSounds() {
       <div class="snd-list-pane">${leftBody}</div>
       <div class="snd-stage">
         <div class="stage-disc-wrap clip-fit ${discLit ? 'lit' : ''}">
-          <div class="stage-art ${discLit ? 'lit' : ''}" style="--art:url('${stageArtUrl}')">
+          <div class="stage-art ${discLit ? 'lit' : ''} ${ytSynced && yt.artwork ? 'yt-art' : ''}" style="--art:url('${stageArtUrl}')">
             <span class="stage-ico">${stageIco}</span>
           </div>
         </div>
@@ -932,14 +935,14 @@ function viewSounds() {
         ${subCtl}
         <div class="stage-vol">
           <input type="range" class="vol" data-master min="0" max="100" value="${mv}" style="--v:${mv}%" aria-label="Âm lượng chung">
-          <div class="stage-vol-meta num"><span>Âm lượng nền ${mv}%</span><button class="stage-fade-btn" data-fade-cycle title="Tự động giảm dần âm lượng trước khi hẹn giờ tắt máy/ngủ kết thúc">${fadeLabel}</button></div>
+          <div class="stage-vol-meta num"><span>Âm lượng nền ${mv}%</span><button class="stage-fade-btn ${A.fade ? 'on' : ''}" data-fade-cycle title="Tự động giảm dần âm lượng trước khi hẹn giờ tắt máy/ngủ kết thúc">${fadeLabel}</button></div>
         </div>
         <div class="stage-ctl">
-          <button class="icon-btn" data-fade-cycle title="Đổi thời gian tắt dần khi hẹn giờ (${fadeLabel})">${Icons.repeat}</button>
+          <button class="icon-btn ${loopMode !== 'all' ? 'on' : ''}" data-do="snd-loop" title="Chế độ lặp Playlist: ${loopLabel}">${loopIcon}</button>
           <button class="icon-btn" data-do="${ytSynced ? 'yt-prev' : 'snd-prev'}" title="Bài trước">${Icons.prev}</button>
           <button class="stage-play ${discLit ? 'lit' : ''}" data-key="snd-play" data-do="${ytSynced ? 'yt-toggle' : 'snd-play'}" aria-label="${discLit ? 'Tạm dừng' : 'Phát'}">${discLit ? Icons.pause : Icons.play}</button>
           <button class="icon-btn" data-key="skip" data-do="${ytSynced ? 'yt-next' : 'snd-skip'}" title="Bài tiếp theo">${Icons.skip}</button>
-          <button class="icon-btn" data-do="snd-shuffle" title="Trộn ngẫu nhiên">${Icons.shuffle}</button>
+          <button class="icon-btn ${A.fade ? 'on' : ''}" data-fade-cycle title="Tắt dần khi hẹn giờ: ${fadeLabel}">${Icons.fade}</button>
         </div>
       </div>
     </div>
@@ -1124,6 +1127,7 @@ document.addEventListener('click', async (e) => {
     case 'snd-play': return Ambient.togglePlay();
     case 'snd-skip': focusedSnd = 'lofi'; return Ambient.skipSong();
     case 'snd-prev': focusedSnd = 'lofi'; return Ambient.prevSong();
+    case 'snd-loop': return Ambient.cycleLofiLoop();
     case 'yt-toggle': return Ambient.ytControl('toggle');
     case 'yt-next': return Ambient.ytControl('next');
     case 'yt-prev': return Ambient.ytControl('prev');

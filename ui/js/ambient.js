@@ -15,6 +15,7 @@ window.Ambient = (() => {
     lofiTrack: null,
     lofiTracks: [],
     lofiProgress: 0,
+    lofiLoopMode: 'all',
     error: null,
     channels: [],
     presets: [],
@@ -58,6 +59,7 @@ window.Ambient = (() => {
     get fade() { return state.fadeMinutes; },
     get lofiTracks() { return state.lofiTracks || []; },
     get lofiProgress() { return state.lofiProgress || 0; },
+    get lofiLoopMode() { return state.lofiLoopMode || 'all'; },
     get yt() { return yt; },
     song: () => state.lofiTrack,
     togglePlay: () => {
@@ -124,6 +126,7 @@ window.Ambient = (() => {
       state.lofiProgress = ratio;
       sleepy.audioSeekLofi(ratio);
     },
+    cycleLofiLoop: () => sleepy.audioCycleLofiLoop(),
     pickFolder: () => sleepy.audioPickFolder(),
     pickFiles: () => sleepy.audioPickFiles(),
     removeCustomTrack: (id) => sleepy.audioRemoveCustomTrack(id),

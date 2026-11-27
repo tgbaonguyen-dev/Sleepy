@@ -1,7 +1,7 @@
 {
   "name": "sleep",
   "private": true,
-  "description": "Tauri CLI cho Nghỉ",
+  "description": "Tauri CLI cho Sleepy",
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build"

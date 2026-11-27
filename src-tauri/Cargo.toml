@@ -1,14 +1,14 @@
 [package]
-name = "nghi"
+name = "sleepy"
 version = "2.0.0"
-description = "Nghỉ — hẹn giờ tắt máy, ngủ, khoá màn hình cho Ubuntu"
+description = "Sleepy — hẹn giờ tắt máy, ngủ, khoá màn hình cho Ubuntu"
 authors = ["Nguyen Tran Gia Bao"]
 license = "MIT"
 edition = "2021"
 rust-version = "1.77"
 
 [lib]
-name = "nghi_lib"
+name = "sleepy_lib"
 crate-type = ["rlib"]
 
 [build-dependencies]

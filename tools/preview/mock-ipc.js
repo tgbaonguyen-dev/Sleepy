@@ -1,7 +1,8 @@
 // Giả lập IPC của Tauri để xem trước giao diện trong trình duyệt thường (không cần build Rust).
-// Nạp TRƯỚC ui/js/bridge.js. Cấu hình qua window.__MOCK__ = { theme, job, dryRun, history }.
+// Nạp TRƯỚC ui/js/bridge.js. Cấu hình qua window.__MOCK__ = { theme, job, dryRun, history, extra }.
+// extra: số preset và lịch lặp thêm vào để thử phân trang.
 (() => {
-  const cfg = Object.assign({ theme: 'dark', job: null, history: 6 }, window.__MOCK__ || {});
+  const cfg = Object.assign({ theme: 'dark', job: null, history: 6, extra: 0 }, window.__MOCK__ || {});
   const listeners = {};
   const now = () => Date.now();
   const id = () => Math.random().toString(16).slice(2, 12);
@@ -26,6 +27,10 @@
     sensors: { cpu: 12, net: 38, battery: { percent: 64, charging: false, status: 'Discharging' }, idle: 4, process: null },
     next: [],
   };
+  for (let i = 0; i < cfg.extra; i++) {
+    st.presets.push({ id: `px${i}`, name: `Preset ${i + 5}`, action: actions[i % 6], trigger: { type: 'countdown', seconds: 600 * (i + 1) } });
+    st.schedules.push({ id: `sx${i}`, time: `${String(i % 24).padStart(2, '0')}:15`, days: [1, 3, 5], action: actions[i % 6], enabled: i % 2 === 0, lastArmed: 0 });
+  }
   let job = null;
   const mkJob = (action, trigger, source) => {
     const t = now();

@@ -50,9 +50,12 @@
     ytHide: () => invoke('yt_hide'),
     ytClose: () => invoke('yt_close'),
     ytStatus: () => invoke('yt_status'),
+    ytMedia: () => invoke('yt_media'),
+    ytControl: (action) => invoke('yt_control', { action }),
     onState: on('state'),
     onTick: on('tick'),
     onAudio: on('audio'),
+    onYtMedia: on('yt-media'),
     onMax: on('win-max'),
   };
 })();

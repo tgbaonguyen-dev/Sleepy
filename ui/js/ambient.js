@@ -20,14 +20,24 @@ window.Ambient = (() => {
     presets: [],
   };
 
+  let yt = { status: 'closed', title: null, source: null, videoId: null, artwork: null };
+
   function applySnapshot(next) {
     if (!next) return;
     state = next;
     emit();
   }
 
+  function applyYt(next) {
+    if (!next) return;
+    yt = next;
+    emit();
+  }
+
   sleepy.audioState().then(applySnapshot).catch(() => {});
   sleepy.onAudio(applySnapshot);
+  sleepy.ytMedia().then(applyYt).catch(() => {});
+  sleepy.onYtMedia(applyYt);
 
   function optimisticChannel(id, fn) {
     const ch = state.channels.find((c) => c.id === id);
@@ -48,6 +58,7 @@ window.Ambient = (() => {
     get fade() { return state.fadeMinutes; },
     get lofiTracks() { return state.lofiTracks || []; },
     get lofiProgress() { return state.lofiProgress || 0; },
+    get yt() { return yt; },
     song: () => state.lofiTrack,
     togglePlay: () => {
       state.playing = !state.playing;
@@ -120,6 +131,7 @@ window.Ambient = (() => {
     ytHide: () => sleepy.ytHide(),
     ytClose: () => sleepy.ytClose(),
     ytStatus: () => sleepy.ytStatus(),
+    ytControl: (action) => sleepy.ytControl(action),
     syncJob: () => {},
     onChange: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
   };

@@ -674,6 +674,7 @@ const SND_TABS = [
 ];
 const SND_FILTERS = [
   ['all', 'Tất cả'],
+  ['active', 'Đang phát'],
   ['rain', 'Mưa'],
   ['nature', 'Thiên nhiên'],
   ['animals', 'Đêm'],
@@ -689,9 +690,9 @@ let playlistFilter = 'all';
 let playlistPage = 0;
 let focusedSnd = 'rain';
 let savingMix = false;
-let ytStatus = 'closed';
+let lastYtTitle = null;
 
-const sndPerPage = () => (window.innerHeight <= 620 ? 5 : 6);
+const sndPerPage = () => (window.innerHeight >= 740 ? 10 : window.innerHeight >= 620 ? 8 : window.innerHeight >= 500 ? 6 : 5);
 
 function paginateSlice(items, page, per) {
   const count = Math.max(1, Math.ceil(items.length / per));
@@ -729,13 +730,17 @@ function soundsPaneHtml(A, song) {
     const ia = PRIORITY_IDS.indexOf(a.id), ib = PRIORITY_IDS.indexOf(b.id);
     return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
   });
-  const list = sndFilter === 'all' ? ordered : ordered.filter((c) => c.category === sndFilter);
+  const activeCount = ordered.filter((c) => c.active).length;
+  const list = sndFilter === 'all' ? ordered
+    : sndFilter === 'active' ? ordered.filter((c) => c.active)
+      : ordered.filter((c) => c.category === sndFilter);
   const pg = paginateSlice(list, sndPage, sndPerPage());
   sndPage = pg.page;
 
-  const filtersHtml = SND_FILTERS.map(([id, label]) =>
-    `<button class="sub-tab ${sndFilter === id ? 'on' : ''}" data-sfilter="${id}">${label}</button>`
-  ).join('');
+  const filtersHtml = SND_FILTERS.map(([id, label]) => {
+    const text = id === 'active' && activeCount ? `${label} (${activeCount})` : label;
+    return `<button class="sub-tab ${sndFilter === id ? 'on' : ''}" data-sfilter="${id}">${text}</button>`;
+  }).join('');
 
   const rows = pg.rows.map((x) => {
     const on = x.active, lit = on && A.playing, loading = A.playing && x.loading, v = Math.round(x.volume * 100);
@@ -752,7 +757,7 @@ function soundsPaneHtml(A, song) {
   }).join('');
 
   return `<div class="snd-subbar">${filtersHtml}</div>
-    <div class="snd-list">${rows}</div>
+    <div class="snd-list">${rows || '<div class="empty">Chưa có âm thanh nào đang bật.</div>'}</div>
     ${pagerHtml('data-snd-page', pg, `${list.length} kênh`)}`;
 }
 
@@ -820,28 +825,40 @@ function playlistPaneHtml(A, song) {
     ${pagerHtml('data-pl-page', pg, `${list.length} bài`)}`;
 }
 
-function youtubePaneHtml() {
-  const statusTxt = ytStatus === 'visible'
-    ? 'Cửa sổ YouTube đang mở — bạn có thể đăng nhập và chọn playlist trực tiếp.'
-    : ytStatus === 'hidden'
-      ? 'Đang phát nền (đã ẩn cửa sổ) — có thể trộn cùng tiếng mưa, gió, dế bên cạnh.'
-      : 'Chưa mở — mở YouTube hoặc YouTube Music để tự đăng nhập và phát nhạc nền.';
+function youtubePaneHtml(A) {
+  const yt = A.yt;
+  const stYt = yt.status || 'closed';
+  const statusTxt = stYt === 'visible'
+    ? (yt.title ? `Đang mở: ${yt.title}` : 'Cửa sổ YouTube đang mở — bạn có thể đăng nhập và chọn nhạc trực tiếp.')
+    : stYt === 'hidden'
+      ? (yt.title ? `Đang phát nền: ${yt.title}` : 'Đang phát nền (đã ẩn cửa sổ) — trộn cùng tiếng mưa, gió, dế.')
+      : 'Chưa mở — mở YouTube hoặc YouTube Music để tự đăng nhập và đồng bộ đĩa nhạc.';
 
   return `<div class="yt-pane">
-    <div class="yt-status"><i class="yt-dot ${ytStatus}"></i><span>${statusTxt}</span></div>
+    <div class="yt-status"><i class="yt-dot ${stYt}"></i><span>${esc(statusTxt)}</span></div>
     <div class="yt-actions">
       <button class="btn primary" data-yt="music">${Icons.lofi} Mở YouTube Music</button>
       <button class="btn" data-yt="youtube">${Icons.play} Mở YouTube</button>
-      <button class="btn ghost" data-yt="hide" ${ytStatus === 'visible' ? '' : 'disabled'}>Ẩn cửa sổ (chỉ nghe tiếng)</button>
-      <button class="btn ghost" data-yt="close" ${ytStatus === 'closed' ? 'disabled' : ''}>Dừng &amp; đóng YouTube</button>
+      <button class="btn ghost" data-yt="hide" ${stYt === 'visible' ? '' : 'disabled'}>Ẩn cửa sổ (chỉ nghe tiếng)</button>
+      <button class="btn ghost" data-yt="close" ${stYt === 'closed' ? 'disabled' : ''}>Dừng &amp; đóng YouTube</button>
     </div>
-    <p class="note">Mẹo: Khi bấm nút đóng (×) trên cửa sổ YouTube, cửa sổ sẽ tự ẩn để giữ âm thanh chạy nền. Để tắt hẳn tiếng YouTube, bấm "Dừng &amp; đóng YouTube".</p>
+    <p class="note">Bài đang phát trên YouTube sẽ tự động đồng bộ tên, ảnh bìa và nút điều khiển lên đĩa nhạc bên phải. Đóng cửa sổ (×) để nghe nền.</p>
   </div>`;
 }
 
 function viewSounds() {
-  const A = Ambient, song = A.song(), activeChannels = A.channels.filter((c) => c.active);
+  const A = Ambient, song = A.song(), yt = A.yt, activeChannels = A.channels.filter((c) => c.active);
   const activeCount = activeChannels.length;
+
+  if (yt.status !== 'closed' && yt.title && yt.title !== lastYtTitle) {
+    lastYtTitle = yt.title;
+    focusedSnd = 'youtube';
+  } else if (yt.status === 'closed' && focusedSnd === 'youtube') {
+    lastYtTitle = null;
+    focusedSnd = activeChannels[0]?.id || 'rain';
+  }
+
+  const ytSynced = yt.status !== 'closed' && (focusedSnd === 'youtube' || sndTab === 'youtube');
   const stageChannel = A.channels.find((c) => c.id === focusedSnd && c.active)
     || A.channels.find((c) => c.id === focusedSnd)
     || activeChannels[0]
@@ -851,7 +868,8 @@ function viewSounds() {
   const status = A.error ? `<span class="err">${esc(A.error)}</span>`
     : A.stoppedByTimer ? 'Đã tắt theo hẹn giờ'
       : A.playing ? (A.fading ? `Tắt dần · ${Math.round(A.fadeLevel * 100)}%` : `Đang phát · ${activeCount} kênh`)
-        : activeCount ? `Tạm dừng · ${activeCount} kênh` : 'Sẵn sàng';
+        : yt.status !== 'closed' ? (yt.source || 'YouTube')
+          : activeCount ? `Tạm dừng · ${activeCount} kênh` : 'Sẵn sàng';
 
   const tabsHtml = SND_TABS.map(([id, label]) =>
     `<button class="snd-tab ${sndTab === id ? 'on' : ''}" data-stab-snd="${id}">${label}</button>`
@@ -860,27 +878,35 @@ function viewSounds() {
   let leftBody = '';
   if (sndTab === 'mixes') leftBody = mixesPaneHtml(A);
   else if (sndTab === 'playlist') leftBody = playlistPaneHtml(A, song);
-  else if (sndTab === 'youtube') leftBody = youtubePaneHtml();
+  else if (sndTab === 'youtube') leftBody = youtubePaneHtml(A);
   else leftBody = soundsPaneHtml(A, song);
 
   const mv = Math.round(A.master * 100);
-  const stageIco = Icons[stageChannel.id] || Icons[stageChannel.category] || Icons.sound;
-  const stageTitle = stageChannel.id === 'lofi' && song ? song.title : stageChannel.name;
-  const stageSub = stageChannel.id === 'lofi' && song ? `${song.artist} · Nhạc Lo-Fi` : stageChannel.desc;
+  const stageArtUrl = ytSynced && yt.artwork ? yt.artwork : `../img/${stageChannel.art || stageChannel.id}.jpg`;
+  const stageIco = ytSynced ? Icons.lofi : (Icons[stageChannel.id] || Icons[stageChannel.category] || Icons.sound);
+  const stageTitle = ytSynced ? (yt.title || yt.source || 'YouTube Audio')
+    : (stageChannel.id === 'lofi' && song ? song.title : stageChannel.name);
+  const stageSub = ytSynced ? `${yt.source || 'YouTube'} · ${yt.status === 'hidden' ? 'Đang chạy nền' : 'Đã đồng bộ'}`
+    : (stageChannel.id === 'lofi' && song ? `${song.artist} · Nhạc Lo-Fi` : stageChannel.desc);
+  const discLit = ytSynced ? (yt.status !== 'closed') : (A.playing && activeCount > 0);
   const fadeLabel = A.fade ? `Tắt dần ${A.fade}p cuối` : 'Không tắt dần';
   const panPct = Math.round((stageChannel.pan || 0) * 100);
   const panLabel = panPct === 0 ? 'Giữa' : panPct < 0 ? `Trái ${Math.abs(panPct)}%` : `Phải ${panPct}%`;
   const seekPct = Math.round(A.lofiProgress * 100);
 
-  const subCtl = stageChannel.id === 'lofi'
-    ? `<div class="stage-subctl">
-        <input type="range" class="vol" data-seek min="0" max="100" value="${seekPct}" style="--v:${seekPct}%" aria-label="Tua bài nhạc">
-        <div class="stage-vol-meta num"><span>Tua bài</span><span>${seekPct}%</span></div>
+  const subCtl = ytSynced
+    ? `<div class="stage-subctl yt-sync-bar">
+        <div class="stage-vol-meta"><span>Nguồn: ${esc(yt.source || 'YouTube')}</span><button class="stage-fade-btn" data-yt="${yt.status === 'visible' ? 'hide' : 'music'}">${yt.status === 'visible' ? 'Ẩn cửa sổ' : 'Hiện cửa sổ'}</button></div>
       </div>`
-    : `<div class="stage-subctl">
-        <input type="range" class="vol pan-slider" data-pan="${stageChannel.id}" min="-100" max="100" value="${panPct}" style="--v:${(panPct + 100) / 2}%" aria-label="Cân bằng Trái/Phải">
-        <div class="stage-vol-meta num"><span>Không gian: ${panLabel}</span><button class="stage-fade-btn ${stageChannel.swell ? 'on' : ''}" data-swell="${stageChannel.id}">Swell ${stageChannel.swell ? 'Bật' : 'Tắt'}</button></div>
-      </div>`;
+    : stageChannel.id === 'lofi'
+      ? `<div class="stage-subctl">
+          <input type="range" class="vol" data-seek min="0" max="100" value="${seekPct}" style="--v:${seekPct}%" aria-label="Tua bài nhạc">
+          <div class="stage-vol-meta num"><span>Tua bài</span><span>${seekPct}%</span></div>
+        </div>`
+      : `<div class="stage-subctl">
+          <input type="range" class="vol pan-slider" data-pan="${stageChannel.id}" min="-100" max="100" value="${panPct}" style="--v:${(panPct + 100) / 2}%" aria-label="Cân bằng Trái/Phải">
+          <div class="stage-vol-meta num"><span>Không gian: ${panLabel}</span><button class="stage-fade-btn ${stageChannel.swell ? 'on' : ''}" data-swell="${stageChannel.id}">Swell ${stageChannel.swell ? 'Bật' : 'Tắt'}</button></div>
+        </div>`;
 
   return `<section class="view sounds" data-key="v-sounds">
     <div class="snd-topbar">
@@ -894,8 +920,10 @@ function viewSounds() {
     <div class="snd-split">
       <div class="snd-list-pane">${leftBody}</div>
       <div class="snd-stage">
-        <div class="stage-art ${A.playing && activeCount ? 'lit' : ''}" style="--art:url('../img/${stageChannel.art || stageChannel.id}.jpg')">
-          <span class="stage-ico">${stageIco}</span>
+        <div class="stage-disc-wrap clip-fit ${discLit ? 'lit' : ''}">
+          <div class="stage-art ${discLit ? 'lit' : ''}" style="--art:url('${stageArtUrl}')">
+            <span class="stage-ico">${stageIco}</span>
+          </div>
         </div>
         <div class="stage-info">
           <b>${esc(stageTitle)}</b>
@@ -904,13 +932,13 @@ function viewSounds() {
         ${subCtl}
         <div class="stage-vol">
           <input type="range" class="vol" data-master min="0" max="100" value="${mv}" style="--v:${mv}%" aria-label="Âm lượng chung">
-          <div class="stage-vol-meta num"><span>Âm lượng ${mv}%</span><button class="stage-fade-btn" data-fade-cycle title="Tự động giảm dần âm lượng trước khi hẹn giờ tắt máy/ngủ kết thúc">${fadeLabel}</button></div>
+          <div class="stage-vol-meta num"><span>Âm lượng nền ${mv}%</span><button class="stage-fade-btn" data-fade-cycle title="Tự động giảm dần âm lượng trước khi hẹn giờ tắt máy/ngủ kết thúc">${fadeLabel}</button></div>
         </div>
         <div class="stage-ctl">
           <button class="icon-btn" data-fade-cycle title="Đổi thời gian tắt dần khi hẹn giờ (${fadeLabel})">${Icons.repeat}</button>
-          <button class="icon-btn" data-do="snd-prev" title="Bài trước">${Icons.prev}</button>
-          <button class="stage-play ${A.playing ? 'lit' : ''}" data-key="snd-play" data-do="snd-play" aria-label="${A.playing ? 'Tạm dừng' : 'Phát'}">${A.playing ? Icons.pause : Icons.play}</button>
-          <button class="icon-btn" data-key="skip" data-do="snd-skip" title="Bài tiếp theo">${Icons.skip}</button>
+          <button class="icon-btn" data-do="${ytSynced ? 'yt-prev' : 'snd-prev'}" title="Bài trước">${Icons.prev}</button>
+          <button class="stage-play ${discLit ? 'lit' : ''}" data-key="snd-play" data-do="${ytSynced ? 'yt-toggle' : 'snd-play'}" aria-label="${discLit ? 'Tạm dừng' : 'Phát'}">${discLit ? Icons.pause : Icons.play}</button>
+          <button class="icon-btn" data-key="skip" data-do="${ytSynced ? 'yt-next' : 'snd-skip'}" title="Bài tiếp theo">${Icons.skip}</button>
           <button class="icon-btn" data-do="snd-shuffle" title="Trộn ngẫu nhiên">${Icons.shuffle}</button>
         </div>
       </div>
@@ -1051,15 +1079,17 @@ document.addEventListener('click', async (e) => {
   if (ds.sndPage) { sndPage += +ds.sndPage; return render(); }
   if (ds.mixPage) { mixPage += +ds.mixPage; return render(); }
   if (ds.plPage) { playlistPage += +ds.plPage; return render(); }
-  if (ds.stabSnd) { sndTab = ds.stabSnd; if (sndTab === 'youtube') Ambient.ytStatus().then((s) => { ytStatus = s; render(); }); return render(); }
+  if (ds.stabSnd) { sndTab = ds.stabSnd; return render(); }
   if (ds.sfilter) { sndFilter = ds.sfilter; sndPage = 0; return render(); }
   if (ds.plFilter) { playlistFilter = ds.plFilter; playlistPage = 0; return render(); }
-  if (ds.apreset) return Ambient.applyPreset(ds.apreset);
-  if (ds.cmix) return Ambient.applyCustomMix(ds.cmix);
+  if (ds.apreset) { focusedSnd = 'rain'; return Ambient.applyPreset(ds.apreset); }
+  if (ds.cmix) { focusedSnd = 'rain'; return Ambient.applyCustomMix(ds.cmix); }
   if (ds.delCmix) return Ambient.deleteMix(ds.delCmix);
   if (ds.yt) {
     try {
-      ytStatus = ds.yt === 'hide' ? await Ambient.ytHide() : ds.yt === 'close' ? await Ambient.ytClose() : await Ambient.ytOpen(ds.yt);
+      if (ds.yt === 'hide') await Ambient.ytHide();
+      else if (ds.yt === 'close') await Ambient.ytClose();
+      else { focusedSnd = 'youtube'; await Ambient.ytOpen(ds.yt); }
       return render();
     } catch (err) { return toast(String(err), true); }
   }
@@ -1094,6 +1124,9 @@ document.addEventListener('click', async (e) => {
     case 'snd-play': return Ambient.togglePlay();
     case 'snd-skip': focusedSnd = 'lofi'; return Ambient.skipSong();
     case 'snd-prev': focusedSnd = 'lofi'; return Ambient.prevSong();
+    case 'yt-toggle': return Ambient.ytControl('toggle');
+    case 'yt-next': return Ambient.ytControl('next');
+    case 'yt-prev': return Ambient.ytControl('prev');
     case 'snd-shuffle': return Ambient.shuffle();
     case 'snd-clear': return Ambient.clearAll();
     case 'snd-files': {

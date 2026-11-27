@@ -211,7 +211,7 @@ h1 { font-size: 27px; font-weight: 600; letter-spacing: -.02em; line-height: 1.1
 
 /* ---------- Danh sách ---------- */
 .list { display: flex; flex-direction: column; gap: 10px; }
-.item { display: grid; align-items: center; gap: 16px; padding: 14px 16px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); animation: in .35s var(--ease) both; transition: border-color .2s; }
+.item { display: grid; align-items: center; gap: 16px; padding: 14px 16px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); animation: in .35s var(--ease) backwards; transition: border-color .2s, background .2s, opacity .25s var(--ease); }
 .item:hover { border-color: var(--line-2); }
 .item .ico { width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center; background: color-mix(in srgb, var(--moon) 14%, transparent); color: var(--moon); }
 .item .ico svg { width: 22px; height: 22px; }
@@ -316,7 +316,6 @@ h1 { font-size: 27px; font-weight: 600; letter-spacing: -.02em; line-height: 1.1
 .rail button.on { background: none; }
 .rail button.on span { color: var(--ink); }
 .rail button { position: relative; }
-.rail button.on::before { content: ''; position: absolute; left: 0; top: 14px; bottom: 22px; width: 3px; border-radius: 2px; background: var(--moon); box-shadow: 0 0 10px var(--moon); }
 .bar { background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--bg1) 85%, transparent) 40%); }
 
 /* ---------- Theme sáng kiểu Todoist: trắng, phẳng, đỏ cà chua, bo góc vừa ---------- */
@@ -328,7 +327,6 @@ h1 { font-size: 27px; font-weight: 600; letter-spacing: -.02em; line-height: 1.1
 [data-theme='light'] .rail button.on { background: #FCE7DC; color: var(--moon); }
 [data-theme='light'] .rail button.on span { color: var(--moon); }
 [data-theme='light'] .rail button.on svg { filter: none; }
-[data-theme='light'] .rail button.on::before { display: none; }
 [data-theme='light'] .btn { border-radius: 6px; border-color: var(--line-2); background: #FFFFFF; }
 [data-theme='light'] .btn:hover { background: #F4EDE5; }
 [data-theme='light'] .btn.primary { background: var(--moon); color: #fff; box-shadow: none; }
@@ -456,3 +454,28 @@ h1 { font-size: 27px; font-weight: 600; letter-spacing: -.02em; line-height: 1.1
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }
+
+/* ---------- Chuyển trạng thái mượt ----------
+   Nút được giữ nguyên qua các lần vẽ lại (morph.js), nên đổi lựa chọn giờ chạy bằng transition CSS. */
+.day { transition: background .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease); }
+.mini { transition: opacity .3s var(--ease); }
+.rail button { z-index: 1; }
+
+/* Thanh bên: một vạch sáng (Đêm) / một nền nhạt (Sáng) trượt tới mục đang chọn. Vị trí do JS ghi vào
+   --ind-y / --ind-h trên #rail. */
+.rail { position: relative; }
+.rail::after { content: ''; position: absolute; left: 10px; top: 0; width: 3px; height: calc(var(--ind-h, 0px) - 36px);
+  transform: translateY(calc(var(--ind-y, 0px) + 14px)); border-radius: 2px; background: var(--moon); box-shadow: 0 0 10px var(--moon);
+  opacity: var(--ind-on, 0); transition: transform var(--ind-d, .28s) var(--ease), height var(--ind-d, .28s) var(--ease); }
+[data-theme='light'] .rail::after { width: 72px; height: var(--ind-h, 0px); transform: translateY(var(--ind-y, 0px)); border-radius: 6px;
+  background: #FCE7DC; box-shadow: none; z-index: 0; }
+[data-theme='light'] .rail button.on, [data-theme='light'] .rail button.on:hover { background: none; }
+
+/* Nút phân đoạn: nền của mục đang chọn là một miếng trượt (::before), vị trí do JS ghi vào --ind-x / --ind-w. */
+.seg { position: relative; isolation: isolate; }
+.seg button { transition: color .2s var(--ease); }
+.seg button.on, [data-theme='light'] .seg button.on { background: none; box-shadow: none; }
+.seg::before { content: ''; position: absolute; z-index: -1; left: 0; top: 4px; bottom: 4px; width: var(--ind-w, 0px);
+  transform: translateX(var(--ind-x, 0px)); border-radius: 999px; background: var(--surface-3); box-shadow: 0 1px 0 var(--line-2) inset;
+  transition: transform var(--ind-d, .26s) var(--ease), width var(--ind-d, .26s) var(--ease); }
+[data-theme='light'] .seg::before { background: #FFFFFF; border-radius: 9px; box-shadow: 0 1px 3px rgba(80, 50, 30, .15); }

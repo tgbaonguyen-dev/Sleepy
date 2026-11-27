@@ -179,7 +179,28 @@ function draw(swapped) {
   if (view === 'timer' && snap?.job) updateRunning();
   const r = $('[data-rename-input]'); if (r && document.activeElement !== r) { r.focus(); r.select(); }
   const p = $('#preset-name'); if (p && document.activeElement !== p) p.focus();
+  syncIndicators();
 }
+
+// Chỉ báo trượt (thanh bên, nút phân đoạn): ghi vị trí nút đang chọn vào biến CSS, phần trượt do
+// transition CSS lo. Lần đầu gán thì tắt transition để chỉ báo không bay từ góc vào.
+function slide(el, vars) {
+  const init = !el.style.getPropertyValue('--ind-on');
+  for (const [k, v] of Object.entries(vars)) el.style.setProperty(k, v);
+  if (!init) return;
+  el.style.setProperty('--ind-on', '1'); el.style.setProperty('--ind-d', '0s');
+  requestAnimationFrame(() => requestAnimationFrame(() => el.style.removeProperty('--ind-d')));
+}
+function syncIndicators() {
+  const rail = $('#rail'), on = rail.querySelector('button.on');
+  if (on) slide(rail, { '--ind-y': `${on.offsetTop}px`, '--ind-h': `${on.offsetHeight}px` });
+  document.querySelectorAll('.seg').forEach((sg) => {
+    const b = sg.querySelector('button.on');
+    slide(sg, { '--ind-x': `${b ? b.offsetLeft : 0}px`, '--ind-w': `${b ? b.offsetWidth : 0}px` });
+  });
+}
+addEventListener('resize', () => st && syncIndicators());
+document.fonts?.ready.then(() => st && syncIndicators());
 
 // ---------- 01 Hẹn giờ: thiết lập ----------
 function viewSetup() {
@@ -208,7 +229,7 @@ function viewSetup() {
       <div class="side">
         <div><div class="label">Muốn làm gì</div><div class="acts">${acts}</div></div>
         <div><div class="label">Lúc nào</div>
-          <div class="seg wide"><button class="${mode === 'countdown' ? 'on' : ''}" data-mode="countdown">Sau bao lâu</button><button class="${mode === 'at' ? 'on' : ''}" data-mode="at">Đúng giờ</button><button class="${mode === 'cond' ? 'on' : ''}" data-mode="cond">Khi xong việc</button></div></div>
+          <div class="seg wide" data-morph-keep="style"><button class="${mode === 'countdown' ? 'on' : ''}" data-mode="countdown">Sau bao lâu</button><button class="${mode === 'at' ? 'on' : ''}" data-mode="at">Đúng giờ</button><button class="${mode === 'cond' ? 'on' : ''}" data-mode="cond">Khi xong việc</button></div></div>
         ${mode === 'cond' ? condCard() : `<p class="note">${mode === 'countdown' ? 'Kéo chấm tròn quanh vòng để chỉnh phút, vòng qua đỉnh là thêm một giờ. Hoặc lăn chuột lên các con số.' : 'Kéo chấm tròn tới giờ bạn muốn. Nếu giờ đó đã qua, Sleepy hiểu là ngày mai.'}</p>`}
         ${quick.length ? `<div><div class="label">Hay dùng</div><div class="quick">${quick.slice(0, 3).map((p) => `<button class="q" data-run="${p.id}" title="${esc(S.describe(p.action, p.trigger))}">
           <span class="qi">${Icons[p.action]}</span><span class="qt"><b>${esc(p.name)}</b><small>${esc(quickDesc(p))}</small></span><span class="qa">${Icons.play}</span></button>`).join('')}</div></div>` : ''}
@@ -482,7 +503,7 @@ function viewHistory() {
 // ---------- 05 Cài đặt ----------
 function seg(key, opts) {
   const v = st.settings[key];
-  return `<div class="seg">${opts.map(([val, l]) => `<button class="${v === val ? 'on' : ''}" data-set="${key}" data-val='${JSON.stringify(val)}'>${l}</button>`).join('')}</div>`;
+  return `<div class="seg" data-morph-keep="style">${opts.map(([val, l]) => `<button class="${v === val ? 'on' : ''}" data-set="${key}" data-val='${JSON.stringify(val)}'>${l}</button>`).join('')}</div>`;
 }
 function sw(key) { return `<button class="switch ${st.settings[key] ? 'on' : ''}" data-set="${key}" data-val='${JSON.stringify(!st.settings[key])}'></button>`; }
 function setRow(title, desc, ctl) { return `<div class="set"><div><b>${title}</b>${desc ? `<p>${desc}</p>` : ''}</div>${ctl}</div>`; }

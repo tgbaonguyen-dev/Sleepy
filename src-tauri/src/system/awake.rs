@@ -83,6 +83,12 @@ impl KeepAwake {
     }
 }
 
+impl Default for KeepAwake {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Drop for KeepAwake {
     fn drop(&mut self) {
         if let Some(child) = self.child.as_mut() {

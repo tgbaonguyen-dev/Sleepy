@@ -3,8 +3,10 @@
 
 use std::collections::{HashMap, HashSet};
 use std::f32::consts::{FRAC_PI_4, TAU};
+#[cfg(not(target_os = "windows"))]
 use std::io::Write;
 use std::path::{Path, PathBuf};
+#[cfg(not(target_os = "windows"))]
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
@@ -267,11 +269,13 @@ impl LofiState {
     }
 }
 
+#[cfg(not(target_os = "windows"))]
 struct SinkProcess {
     child: Child,
     stdin: ChildStdin,
 }
 
+#[cfg(not(target_os = "windows"))]
 impl SinkProcess {
     fn spawn() -> Result<Self, String> {
         let rate = TARGET_SAMPLE_RATE.to_string();
@@ -337,6 +341,178 @@ impl SinkProcess {
         let _ = self.child.wait();
     }
 }
+
+#[cfg(target_os = "windows")]
+mod win_audio {
+    use std::ffi::c_void;
+    use std::time::Duration;
+
+    use super::{CHUNK_FRAMES, TARGET_CHANNELS, TARGET_SAMPLE_RATE};
+
+    const WAVE_MAPPER: u32 = u32::MAX;
+    const WAVE_FORMAT_PCM: u16 = 1;
+    const WHDR_DONE: u32 = 0x0000_0001;
+    const WHDR_PREPARED: u32 = 0x0000_0002;
+    const BUF_COUNT: usize = 4;
+
+    #[repr(C)]
+    struct WaveFormatEx {
+        format_tag: u16,
+        channels: u16,
+        samples_per_sec: u32,
+        avg_bytes_per_sec: u32,
+        block_align: u16,
+        bits_per_sample: u16,
+        cb_size: u16,
+    }
+
+    #[repr(C)]
+    struct WaveHdr {
+        data: *mut u8,
+        buffer_length: u32,
+        bytes_recorded: u32,
+        user: usize,
+        flags: u32,
+        loops: u32,
+        next: *mut WaveHdr,
+        reserved: usize,
+    }
+
+    #[link(name = "winmm")]
+    extern "system" {
+        fn waveOutOpen(
+            phwo: *mut *mut c_void,
+            device_id: u32,
+            pwfx: *const WaveFormatEx,
+            callback: usize,
+            instance: usize,
+            fdw_open: u32,
+        ) -> u32;
+        fn waveOutPrepareHeader(hwo: *mut c_void, pwh: *mut WaveHdr, cbwh: u32) -> u32;
+        fn waveOutWrite(hwo: *mut c_void, pwh: *mut WaveHdr, cbwh: u32) -> u32;
+        fn waveOutUnprepareHeader(hwo: *mut c_void, pwh: *mut WaveHdr, cbwh: u32) -> u32;
+        fn waveOutReset(hwo: *mut c_void) -> u32;
+        fn waveOutClose(hwo: *mut c_void) -> u32;
+    }
+
+    struct Slot {
+        hdr: Box<WaveHdr>,
+        data: Box<[u8]>,
+        queued: bool,
+    }
+
+    pub struct SinkProcess {
+        handle: *mut c_void,
+        slots: Vec<Slot>,
+        next: usize,
+    }
+
+    impl SinkProcess {
+        pub fn spawn() -> Result<Self, String> {
+            let block_align = (TARGET_CHANNELS * 2) as u16;
+            let fmt = WaveFormatEx {
+                format_tag: WAVE_FORMAT_PCM,
+                channels: TARGET_CHANNELS as u16,
+                samples_per_sec: TARGET_SAMPLE_RATE,
+                avg_bytes_per_sec: TARGET_SAMPLE_RATE * block_align as u32,
+                block_align,
+                bits_per_sample: 16,
+                cb_size: 0,
+            };
+            let mut handle: *mut c_void = std::ptr::null_mut();
+            let res = unsafe { waveOutOpen(&mut handle, WAVE_MAPPER, &fmt, 0, 0, 0) };
+            if res != 0 || handle.is_null() {
+                return Err(format!("Không mở được thiết bị âm thanh Windows (mã {res})"));
+            }
+
+            let chunk_bytes = CHUNK_FRAMES * TARGET_CHANNELS * 2;
+            let mut slots = Vec::with_capacity(BUF_COUNT);
+            for _ in 0..BUF_COUNT {
+                let mut data = vec![0u8; chunk_bytes].into_boxed_slice();
+                let hdr = Box::new(WaveHdr {
+                    data: data.as_mut_ptr(),
+                    buffer_length: chunk_bytes as u32,
+                    bytes_recorded: 0,
+                    user: 0,
+                    flags: 0,
+                    loops: 0,
+                    next: std::ptr::null_mut(),
+                    reserved: 0,
+                });
+                slots.push(Slot {
+                    hdr,
+                    data,
+                    queued: false,
+                });
+            }
+            Ok(Self {
+                handle,
+                slots,
+                next: 0,
+            })
+        }
+
+        pub fn write_pcm(&mut self, bytes: &[u8]) -> Result<(), String> {
+            let idx = self.next;
+            self.next = (self.next + 1) % self.slots.len();
+            let slot = &mut self.slots[idx];
+
+            if slot.queued {
+                while (unsafe { std::ptr::read_volatile(&slot.hdr.flags) } & WHDR_DONE) == 0 {
+                    std::thread::sleep(Duration::from_millis(4));
+                }
+                unsafe {
+                    waveOutUnprepareHeader(
+                        self.handle,
+                        slot.hdr.as_mut(),
+                        std::mem::size_of::<WaveHdr>() as u32,
+                    );
+                }
+                slot.queued = false;
+            }
+
+            if slot.data.len() != bytes.len() {
+                slot.data = bytes.to_vec().into_boxed_slice();
+            } else {
+                slot.data.copy_from_slice(bytes);
+            }
+            slot.hdr.data = slot.data.as_mut_ptr();
+            slot.hdr.buffer_length = slot.data.len() as u32;
+            slot.hdr.flags = 0;
+
+            let hdr_size = std::mem::size_of::<WaveHdr>() as u32;
+            let prep = unsafe { waveOutPrepareHeader(self.handle, slot.hdr.as_mut(), hdr_size) };
+            if prep != 0 {
+                return Err(format!("Lỗi chuẩn bị bộ đệm âm thanh Windows (mã {prep})"));
+            }
+            let wr = unsafe { waveOutWrite(self.handle, slot.hdr.as_mut(), hdr_size) };
+            if wr != 0 {
+                unsafe {
+                    waveOutUnprepareHeader(self.handle, slot.hdr.as_mut(), hdr_size);
+                }
+                return Err(format!("Lỗi ghi âm thanh Windows (mã {wr})"));
+            }
+            slot.queued = true;
+            Ok(())
+        }
+
+        pub fn close(mut self) {
+            let hdr_size = std::mem::size_of::<WaveHdr>() as u32;
+            unsafe {
+                waveOutReset(self.handle);
+                for slot in &mut self.slots {
+                    if (slot.hdr.flags & WHDR_PREPARED) != 0 {
+                        waveOutUnprepareHeader(self.handle, slot.hdr.as_mut(), hdr_size);
+                    }
+                }
+                waveOutClose(self.handle);
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+use win_audio::SinkProcess;
 
 pub struct MixerEngine {
     sounds_dir: PathBuf,

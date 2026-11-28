@@ -48,7 +48,7 @@ jobs:
             src-tauri/target/release/bundle/appimage/*.AppImage
 
   windows:
-    name: Windows (.exe, experimental)
+    name: Windows (.exe)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4

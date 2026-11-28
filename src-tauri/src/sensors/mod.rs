@@ -1,10 +1,16 @@
 //! Cảm biến cho các kiểu hẹn "khi xong việc": CPU, mạng, pin, thời gian rảnh, tiến trình.
 
+#[cfg(not(target_os = "windows"))]
 mod linux;
+#[cfg(target_os = "windows")]
+mod windows;
 
 use serde::Serialize;
 
-pub use linux::LinuxSensors;
+#[cfg(not(target_os = "windows"))]
+pub use linux::LinuxSensors as PlatformSensors;
+#[cfg(target_os = "windows")]
+pub use windows::WindowsSensors as PlatformSensors;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]

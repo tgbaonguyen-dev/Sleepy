@@ -240,6 +240,17 @@ pub fn youtube_media(app: &AppHandle) -> YtMediaState {
     }
 }
 
+fn curl_get(url: &str, timeout_secs: &str) -> Option<Vec<u8>> {
+    let mut cmd = std::process::Command::new("curl");
+    cmd.args(["-fsSL", "--max-time", timeout_secs, url]);
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000);
+    }
+    cmd.output().ok().filter(|o| o.status.success()).map(|o| o.stdout)
+}
+
 fn fetch_yt_meta_cached(video_id: &str) -> (Option<String>, Option<String>) {
     {
         let guard = YT_CACHE.lock().unwrap_or_else(|e| e.into_inner());
@@ -253,12 +264,8 @@ fn fetch_yt_meta_cached(video_id: &str) -> (Option<String>, Option<String>) {
     // Lấy tên bài hát qua YouTube oEmbed (nhanh, sạch, không phụ thuộc DOM).
     let oembed_url =
         format!("https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json");
-    let title = std::process::Command::new("curl")
-        .args(["-fsSL", "--max-time", "3", &oembed_url])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .and_then(|o| serde_json::from_slice::<serde_json::Value>(&o.stdout).ok())
+    let title = curl_get(&oembed_url, "3")
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
         .and_then(|v| v.get("title").and_then(|t| t.as_str()).map(|s| s.to_string()));
 
     // Ưu tiên maxresdefault (1280x720, không viền đen), sau đó sddefault rồi hqdefault.
@@ -269,12 +276,8 @@ fn fetch_yt_meta_cached(video_id: &str) -> (Option<String>, Option<String>) {
     ];
     let mut data_url = None;
     for url in candidates {
-        let output = std::process::Command::new("curl")
-            .args(["-fsSL", "--max-time", "4", &url])
-            .output()
-            .ok();
-        if let Some(o) = output.filter(|o| o.status.success() && o.stdout.len() > 2048) {
-            data_url = Some(format!("data:image/jpeg;base64,{}", encode_base64(&o.stdout)));
+        if let Some(bytes) = curl_get(&url, "4").filter(|b| b.len() > 2048) {
+            data_url = Some(format!("data:image/jpeg;base64,{}", encode_base64(&bytes)));
             break;
         }
     }

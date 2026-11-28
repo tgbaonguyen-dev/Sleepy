@@ -16,9 +16,9 @@ use tauri::Manager;
 use crate::audio::AudioController;
 use crate::domain::time::now_ms;
 use crate::engine::Engine;
-use crate::sensors::LinuxSensors;
+use crate::sensors::PlatformSensors;
 use crate::store::Store;
-use crate::system::{KeepAwake, PowerControl, Systemd};
+use crate::system::{KeepAwake, PlatformPower, PowerControl};
 
 pub use state::AppState;
 use state::Core;
@@ -32,7 +32,7 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     };
     let mut store = Store::open(&dir)?;
     let engine = Engine::restore(&mut store, now_ms());
-    let power: Arc<dyn PowerControl> = Arc::new(Systemd);
+    let power: Arc<dyn PowerControl> = Arc::new(PlatformPower);
     let caps = power.capabilities();
     let hidden = std::env::args().any(|a| a == "--hidden") || store.data.settings.start_minimized;
     let warn_pending = engine
@@ -50,7 +50,7 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         core: Mutex::new(Core {
             store,
             engine,
-            sensors: LinuxSensors::new(),
+            sensors: PlatformSensors::new(),
             caps,
         }),
         power,

@@ -1,15 +1,40 @@
+#[cfg(not(target_os = "windows"))]
 use std::io::Read;
+#[cfg(not(target_os = "windows"))]
 use std::process::{Child, Command, Stdio};
+#[cfg(not(target_os = "windows"))]
 use std::thread;
+#[cfg(not(target_os = "windows"))]
 use std::time::Duration;
 
+#[cfg(target_os = "windows")]
+const ES_CONTINUOUS: u32 = 0x8000_0000;
+#[cfg(target_os = "windows")]
+const ES_SYSTEM_REQUIRED: u32 = 0x0000_0001;
+#[cfg(target_os = "windows")]
+const ES_DISPLAY_REQUIRED: u32 = 0x0000_0002;
+
+#[cfg(target_os = "windows")]
+#[link(name = "kernel32")]
+extern "system" {
+    fn SetThreadExecutionState(es_flags: u32) -> u32;
+}
+
 pub struct KeepAwake {
+    #[cfg(not(target_os = "windows"))]
     child: Option<Child>,
+    #[cfg(target_os = "windows")]
+    active: bool,
 }
 
 impl KeepAwake {
     pub fn new() -> Self {
-        Self { child: None }
+        Self {
+            #[cfg(not(target_os = "windows"))]
+            child: None,
+            #[cfg(target_os = "windows")]
+            active: false,
+        }
     }
 
     pub fn set(&mut self, enabled: bool) -> Result<(), String> {
@@ -20,6 +45,33 @@ impl KeepAwake {
         }
     }
 
+    #[cfg(target_os = "windows")]
+    fn start(&mut self) -> Result<(), String> {
+        if self.active {
+            return Ok(());
+        }
+        let prev =
+            unsafe { SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED) };
+        if prev == 0 {
+            return Err("Không bật được chế độ giữ màn hình sáng trên Windows".into());
+        }
+        self.active = true;
+        Ok(())
+    }
+
+    #[cfg(target_os = "windows")]
+    fn stop(&mut self) -> Result<(), String> {
+        if !self.active {
+            return Ok(());
+        }
+        unsafe {
+            SetThreadExecutionState(ES_CONTINUOUS);
+        }
+        self.active = false;
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "windows"))]
     fn start(&mut self) -> Result<(), String> {
         if let Some(child) = self.child.as_mut() {
             if child
@@ -69,6 +121,7 @@ impl KeepAwake {
         Ok(())
     }
 
+    #[cfg(not(target_os = "windows"))]
     fn stop(&mut self) -> Result<(), String> {
         let Some(mut child) = self.child.take() else {
             return Ok(());
@@ -91,9 +144,20 @@ impl Default for KeepAwake {
 
 impl Drop for KeepAwake {
     fn drop(&mut self) {
-        if let Some(child) = self.child.as_mut() {
-            let _ = child.kill();
-            let _ = child.wait();
+        #[cfg(target_os = "windows")]
+        {
+            if self.active {
+                unsafe {
+                    SetThreadExecutionState(ES_CONTINUOUS);
+                }
+            }
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            if let Some(child) = self.child.as_mut() {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
         }
     }
 }

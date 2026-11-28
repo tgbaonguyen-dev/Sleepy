@@ -7,7 +7,7 @@ use serde_json::Value;
 use crate::audio::AudioController;
 use crate::domain::time::now_ms;
 use crate::engine::{Engine, Snapshot};
-use crate::sensors::{LinuxSensors, SensorSource};
+use crate::sensors::{PlatformSensors, SensorSource};
 use crate::store::{HistoryEntry, MixPreset, Preset, Schedule, Settings, Store};
 use crate::system::{KeepAwake, PowerControl};
 
@@ -15,7 +15,7 @@ use crate::system::{KeepAwake, PowerControl};
 pub struct Core {
     pub store: Store,
     pub engine: Engine,
-    pub sensors: LinuxSensors,
+    pub sensors: PlatformSensors,
     pub caps: BTreeMap<String, String>,
 }
 
@@ -61,7 +61,9 @@ impl Core {
             draft: d.draft.clone(),
             caps: self.caps.clone(),
             has_battery: self.sensors.battery().is_some(),
-            user: std::env::var("USER").unwrap_or_default(),
+            user: std::env::var("USER")
+                .or_else(|_| std::env::var("USERNAME"))
+                .unwrap_or_default(),
             snapshot: self.engine.snapshot(&self.store, now_ms()),
         }
     }

@@ -337,13 +337,16 @@ pub fn audio_delete_mix(app: AppHandle, state: State<'_, AppState>, id: String) 
     super::tray::refresh(&app, true);
 }
 
+#[cfg(not(target_os = "windows"))]
 fn default_music_dir() -> String {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/home".into());
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_else(|_| ".".into());
     let music = std::path::PathBuf::from(&home).join("Music");
     if music.is_dir() {
-        format!("{}/", music.display())
+        format!("{}{}", music.display(), std::path::MAIN_SEPARATOR)
     } else {
-        format!("{home}/")
+        format!("{home}{}", std::path::MAIN_SEPARATOR)
     }
 }
 
@@ -371,8 +374,8 @@ fn persist_and_add_tracks(state: &State<'_, AppState>, paths: Vec<std::path::Pat
     added_count
 }
 
-#[tauri::command]
-pub fn audio_pick_folder(state: State<'_, AppState>) -> Result<usize, String> {
+#[cfg(not(target_os = "windows"))]
+fn pick_folder_dialog() -> Result<Option<String>, String> {
     let initial = default_music_dir();
     let output = std::process::Command::new("zenity")
         .args([
@@ -384,12 +387,80 @@ pub fn audio_pick_folder(state: State<'_, AppState>) -> Result<usize, String> {
         .output()
         .map_err(|e| format!("Không mở được hộp thoại chọn thư mục (cần zenity): {e}"))?;
     if !output.status.success() {
-        return Ok(0);
+        return Ok(None);
     }
     let raw = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if raw.is_empty() {
-        return Ok(0);
+    Ok((!raw.is_empty()).then_some(raw))
+}
+
+#[cfg(target_os = "windows")]
+fn pick_folder_dialog() -> Result<Option<String>, String> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let script = "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; Add-Type -AssemblyName System.Windows.Forms; $d=New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description='Chọn thư mục nhạc'; if($d.ShowDialog() -eq 'OK'){ Write-Output $d.SelectedPath }";
+    let output = std::process::Command::new("powershell")
+        .args(["-NoProfile", "-STA", "-Command", script])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .map_err(|e| format!("Không mở được hộp thoại chọn thư mục: {e}"))?;
+    if !output.status.success() {
+        return Ok(None);
     }
+    let raw = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    Ok((!raw.is_empty()).then_some(raw))
+}
+
+#[cfg(not(target_os = "windows"))]
+fn pick_files_dialog() -> Result<Vec<std::path::PathBuf>, String> {
+    let initial = default_music_dir();
+    let output = std::process::Command::new("zenity")
+        .args([
+            "--file-selection",
+            "--multiple",
+            "--separator=\n",
+            &format!("--filename={initial}"),
+            "--file-filter=Âm thanh | *.mp3 *.ogg *.wav",
+            "--title=Chọn tệp nhạc của bạn",
+        ])
+        .output()
+        .map_err(|e| format!("Không mở được hộp thoại chọn tệp (cần zenity): {e}"))?;
+    if !output.status.success() {
+        return Ok(Vec::new());
+    }
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(std::path::PathBuf::from)
+        .collect())
+}
+
+#[cfg(target_os = "windows")]
+fn pick_files_dialog() -> Result<Vec<std::path::PathBuf>, String> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let script = "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; Add-Type -AssemblyName System.Windows.Forms; $d=New-Object System.Windows.Forms.OpenFileDialog; $d.Multiselect=$true; $d.Filter='Âm thanh (*.mp3;*.ogg;*.wav)|*.mp3;*.ogg;*.wav'; if($d.ShowDialog() -eq 'OK'){ $d.FileNames | ForEach-Object { Write-Output $_ } }";
+    let output = std::process::Command::new("powershell")
+        .args(["-NoProfile", "-STA", "-Command", script])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .map_err(|e| format!("Không mở được hộp thoại chọn tệp: {e}"))?;
+    if !output.status.success() {
+        return Ok(Vec::new());
+    }
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(std::path::PathBuf::from)
+        .collect())
+}
+
+#[tauri::command]
+pub fn audio_pick_folder(state: State<'_, AppState>) -> Result<usize, String> {
+    let Some(raw) = pick_folder_dialog()? else {
+        return Ok(0);
+    };
     let entries = std::fs::read_dir(&raw).map_err(|e| format!("Không đọc được thư mục {raw}: {e}"))?;
     let mut files: Vec<std::path::PathBuf> = entries
         .filter_map(|e| e.ok().map(|e| e.path()))
@@ -406,27 +477,7 @@ pub fn audio_pick_folder(state: State<'_, AppState>) -> Result<usize, String> {
 
 #[tauri::command]
 pub fn audio_pick_files(state: State<'_, AppState>) -> Result<usize, String> {
-    let initial = default_music_dir();
-    let output = std::process::Command::new("zenity")
-        .args([
-            "--file-selection",
-            "--multiple",
-            "--separator=\n",
-            &format!("--filename={initial}"),
-            "--file-filter=Âm thanh | *.mp3 *.ogg *.wav",
-            "--title=Chọn tệp nhạc của bạn",
-        ])
-        .output()
-        .map_err(|e| format!("Không mở được hộp thoại chọn tệp (cần zenity): {e}"))?;
-    if !output.status.success() {
-        return Ok(0);
-    }
-    let files: Vec<std::path::PathBuf> = String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(std::path::PathBuf::from)
-        .collect();
+    let files = pick_files_dialog()?;
     Ok(persist_and_add_tracks(&state, files))
 }
 

@@ -11,7 +11,7 @@
 
 ## Nhạc Lo-Fi
 * **Open Lo-Fi** ([btahir/open-lofi](https://github.com/btahir/open-lofi) — **CC0 1.0 Universal / Public Domain**):
-  * 23 bản nhạc `.mp3` trong `ui/sounds/lofi/`.
+  * 23 bản nhạc `.mp3` trong `src-tauri/sounds/lofi/`.
 
 ## Ảnh minh hoạ thẻ âm thanh (`ui/img/*.jpg`)
 * **Lofi-Music** ([riccardobertolini/lofi-music](https://github.com/riccardobertolini/lofi-music) — MIT): các ảnh nền thiên nhiên và không gian đã được tối ưu kích thước cho thẻ âm thanh.

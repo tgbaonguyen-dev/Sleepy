@@ -44,17 +44,38 @@ impl Drop for AudioController {
     }
 }
 
+/// Finds the bundled `sounds/` folder.
+///
+/// Installed builds ship the files as Tauri resources (`bundle.resources` copies
+/// `src-tauri/sounds/` to `sounds/`, keeping subfolders such as `lofi/`): `/usr/lib/Sleepy/sounds` for the .deb, inside
+/// the AppImage mount, and next to `Sleepy.exe` for the Windows installer. The
+/// source-tree path is only a fallback for debug builds, so a release binary never
+/// points at the machine it was compiled on.
 fn resolve_sounds_dir(app: &AppHandle) -> PathBuf {
     let mut candidates = Vec::new();
     if let Ok(res_dir) = app.path().resource_dir() {
         candidates.push(res_dir.join("sounds"));
-        candidates.push(res_dir.join("ui/sounds"));
     }
-    candidates.push(Path::new(env!("CARGO_MANIFEST_DIR")).join("../ui/sounds"));
-    candidates.push(PathBuf::from("ui/sounds"));
+    if let Some(exe_dir) = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(Path::to_path_buf))
+    {
+        candidates.push(exe_dir.join("sounds"));
+    }
+    if cfg!(debug_assertions) {
+        candidates.push(Path::new(env!("CARGO_MANIFEST_DIR")).join("sounds"));
+        candidates.push(PathBuf::from("src-tauri").join("sounds"));
+    }
 
-    candidates
-        .into_iter()
-        .find(|p| p.is_dir())
-        .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("../ui/sounds"))
+    let first = candidates
+        .first()
+        .cloned()
+        .unwrap_or_else(|| PathBuf::from("sounds"));
+    candidates.into_iter().find(|p| p.is_dir()).unwrap_or_else(|| {
+        eprintln!(
+            "sleepy: bundled sounds folder not found, expected {}",
+            first.display()
+        );
+        first
+    })
 }

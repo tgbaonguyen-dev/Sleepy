@@ -35,9 +35,9 @@ or the **battery runs low**.
 Download the `.deb` or `.AppImage` from Releases, then:
 
 ```bash
-sudo apt install ./Sleepy_2.0.0_amd64.deb
+sudo apt install ./Sleepy_2.0.1_amd64.deb
 # or
-chmod +x Sleepy_2.0.0_amd64.AppImage && ./Sleepy_2.0.0_amd64.AppImage
+chmod +x Sleepy_2.0.1_amd64.AppImage && ./Sleepy_2.0.1_amd64.AppImage
 ```
 
 Sleepy targets Ubuntu / GNOME on Linux (systemd + logind, PipeWire or PulseAudio).
@@ -88,7 +88,7 @@ tools/preview/ Playwright screenshots and UI checks
 - **Brown / pink / white noise:** synthesized in Rust in `src-tauri/src/audio/decoder.rs`.
 - **Sound card artwork:** from [riccardobertolini/lofi-music](https://github.com/riccardobertolini/lofi-music).
 
-The full file list is in [ui/sounds/CREDITS.md](ui/sounds/CREDITS.md).
+The full file list is in [src-tauri/sounds/CREDITS.md](src-tauri/sounds/CREDITS.md).
 
 ## License
 

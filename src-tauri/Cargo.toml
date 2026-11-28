@@ -1,6 +1,6 @@
 [package]
 name = "sleepy"
-version = "2.0.0"
+version = "2.0.1"
 description = "Sleepy — hẹn giờ tắt máy, ngủ, khoá màn hình cho Ubuntu"
 authors = ["Nguyen Tran Gia Bao"]
 license = "MIT"

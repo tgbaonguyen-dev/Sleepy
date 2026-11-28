@@ -435,12 +435,6 @@ document.addEventListener('pointerdown', (e) => {
   addEventListener('pointercancel', onEnd);
   hb.addEventListener('pointerleave', onEnd);
 }, true);
-function applyTheme() {
-  const pref = st?.settings.theme || 'dark';
-  const dark = pref === 'dark' || (pref === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
-  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-}
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 function sourceLabel(src) {
   if (!src || src === 'manual') return 'Bắt đầu thủ công';
   const [k, id] = src.split(':');
@@ -528,7 +522,7 @@ function sysBannerHtml() {
   return `<div class="sys-banner" data-key="sys-banner" role="status"><span>Chế độ thử đang bật · Hành động sẽ không được thực hiện.</span><button class="sys-banner-btn" data-set="dryRun" data-val="false">Tắt chế độ thử</button></div>`;
 }
 function draw() {
-  applyTheme(); renderRail();
+  renderRail();
   const main = $('#main');
   const html = () => sysBannerHtml() + ({ timer: () => (snap?.job ? viewRunning() : viewSetup()), sounds: viewSounds, presets: viewPresets, schedules: viewSchedules, history: viewHistory, settings: viewSettings }[view]());
   morph(main, html());
@@ -1464,7 +1458,6 @@ function viewSettings() {
         ${setRow('Âm báo', 'Phát âm thanh khi cảnh báo và trong 10 giây cuối.', sw('sound', 'Âm báo'))}
       </div>
       <div class="card group" data-g="app"><h2>Ứng dụng</h2>
-        ${setRow('Giao diện', 'Chọn giao diện hiển thị.', seg('theme', [['dark', 'Tối'], ['light', 'Sáng'], ['system', 'Hệ thống']]))}
         ${setRow('Giữ hệ thống hoạt động', 'Ngăn màn hình tắt và máy ngủ khi đang hẹn giờ.', sw('keepAwake', 'Giữ hệ thống hoạt động'))}
         ${setRow('Thu nhỏ vào khay khi đóng', 'Tiếp tục chạy hẹn giờ khi cửa sổ chính đóng.', sw('closeToTray', 'Thu nhỏ vào khay khi đóng'))}
         ${setRow('Khởi động cùng hệ thống', 'Khởi động Sleepy sau khi đăng nhập.', sw('autostart', 'Khởi động cùng hệ thống'))}
@@ -1827,7 +1820,6 @@ function openCommandPalette() {
   palettePrevFocus = document.activeElement;
   const items = [
     ...VIEWS.map(([k, l], i) => ({ group: 'Điều hướng', label: `Đi tới ${l}`, kbd: `Ctrl+${i + 1}`, run: () => { view = k; savingPreset = false; renaming = null; editingSched = null; render(); } })),
-    { group: 'Điều hướng', label: 'Đổi giao diện Sáng / Tối', meta: 'Cài đặt', run: () => sleepy.setSettings({ theme: document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark' }) },
     { group: 'Điều hướng', label: 'Xem bảng phím tắt', kbd: '?', run: () => openShortcutsHelp() },
     ...(snap?.job
       ? [{ group: 'Hẹn giờ', label: 'Huỷ hẹn giờ đang chạy', kbd: 'Ctrl+.', run: () => {

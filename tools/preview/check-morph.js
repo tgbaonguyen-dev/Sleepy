@@ -1,6 +1,6 @@
 // Kiểm tra rằng giao diện được "vá" tại chỗ chứ không dựng lại: nút DOM phải sống sót qua các thao tác
 // chỉ đổi trạng thái, và chỉ bị thay khi đổi màn.
-// node tools/preview/check-morph.js [--theme dark|light]
+// node tools/preview/check-morph.js
 const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');

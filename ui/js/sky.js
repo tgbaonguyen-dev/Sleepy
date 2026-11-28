@@ -173,20 +173,6 @@
     if (reduce.matches) draw(performance.now());
     else frameId = requestAnimationFrame(frame);
   }
-  function stop() {
-    active = false;
-    cancelAnimationFrame(frameId);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    canvas.style.display = 'none';
-  }
-  function sync() {
-    const dark = document.documentElement.dataset.theme !== 'light';
-    if (dark && !active) start();
-    else if (!dark && active) stop();
-    else if (!dark) canvas.style.display = 'none';
-  }
-
-  new MutationObserver(sync).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   document.addEventListener('visibilitychange', () => {
     if (!active) return;
     if (document.hidden) cancelAnimationFrame(frameId);
@@ -199,5 +185,5 @@
   });
   document.addEventListener('mouseleave', () => { pointer.targetX = 0; pointer.targetY = 0; });
   reduce.addEventListener('change', () => { if (active) { cancelAnimationFrame(frameId); start(); } });
-  sync();
+  start();
 })();

@@ -48,31 +48,6 @@
   --content-max: 1040px;
   color-scheme: dark;
 }
-:root[data-theme='light'] {
-  --bg0: #FFFDFA;
-  --bg1: #FFFDFA;
-  --sky-glow: transparent;
-  --surface: #F8F2EA;
-  --surface-2: #FFFFFF;
-  --surface-3: #F2EAE0;
-  --line: #E8DED3;
-  --line-2: #9A8673;
-  --ink: #2B2420;
-  --ink-2: #6F625A;
-  --ink-3: #756759;
-  --ink-disabled: #B8ACA2;
-  --moon: #3D4BA8;
-  --moon-2: #2F3C8F;
-  --moon-ink: #FFFFFF;
-  --focus: #3D4BA8;
-  --lamp: #8F4C07;
-  --danger: #C23A30;
-  --ok: #2F7A47;
-  --halo: rgb(61 75 168 / .14);
-  --shadow: 0 8px 24px -12px rgba(80, 50, 30, .25);
-  --stars: 0;
-  color-scheme: light;
-}
 
 * { box-sizing: border-box; margin: 0; padding: 0; min-width: 0; }
 html, body { width: 100%; height: 100%; overflow: hidden; }
@@ -107,7 +82,7 @@ input:focus-visible, .time-in input:focus-visible, .sentence input:focus-visible
    Cùng một cấu trúc ở hai giao diện, chỉ khác màu (các biến --nav-*). Rộng: biểu tượng + nhãn nhỏ;
    hẹp (phóng to): chỉ còn biểu tượng, nhãn nằm trong title (tooltip). */
 :root { --nav-hover: rgba(255, 255, 255, .035); --nav-on-bg: rgba(255, 255, 255, .06); --nav-on-ink: var(--ink); --nav-bar: var(--moon); }
-:root[data-theme='light'] { --nav-hover: #F1E8DE; --nav-on-bg: color-mix(in srgb, var(--moon) 14%, transparent); --nav-on-ink: var(--moon-2); --nav-bar: var(--moon); }
+
 .titlebar { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; padding-left: 22px; }
 .brand { display: flex; align-items: center; gap: 9px; font-size: var(--fs-control); font-weight: 600; letter-spacing: -.005em; }
 .brand svg { width: 18px; height: 18px; display: block; color: var(--moon);  }
@@ -201,7 +176,7 @@ h1 { font-size: var(--fs-h1); font-weight: 600; letter-spacing: -.015em; line-he
 
 .cpop { position: fixed; z-index: 60; min-width: 220px; max-width: 320px; padding: var(--s-3) var(--s-4); border-radius: var(--r-lg);
   background: var(--bg1); border: 1px solid var(--line-2); box-shadow: var(--shadow); }
-[data-theme='light'] .cpop { background: #FFFFFF; }
+
 .cpop-t { font-size: var(--fs-control); font-weight: 600; color: var(--ink); margin-bottom: var(--s-2); }
 .cpop-p { font-size: var(--fs-caption); color: var(--ink-2); line-height: var(--lh-body); margin-bottom: var(--s-3); }
 .cpop-p code { font-family: var(--mono); font-size: var(--fs-micro); padding: 1px var(--s-1); border-radius: var(--r-xs); background: var(--surface-2); color: var(--ink); }
@@ -482,40 +457,7 @@ html.dragging-dial, html.dragging-dial * { cursor: grabbing !important; -webkit-
 .pager .icon-btn:disabled { opacity: .3; cursor: default; background: none; }
 .pager .num { min-width: 3.4em; text-align: center; font-size: var(--fs-caption); color: var(--ink-3); }
 
-
 /* ---------- Theme sáng kiểu Todoist: trắng, phẳng, đỏ cà chua, bo góc vừa ---------- */
-[data-theme='light'] .titlebar { background: #F8F2EA; }
-[data-theme='light'] .app { background: linear-gradient(90deg, #F8F2EA var(--rail-w), #FFFDFA var(--rail-w)); }
-[data-theme='light'] .brand svg { filter: none; }
-[data-theme='light'] .btn { border-radius: var(--r-sm); border-color: var(--line-2); background: #FFFFFF; }
-[data-theme='light'] .btn:hover { background: #F4EDE5; }
-[data-theme='light'] .btn.primary { background: var(--moon); color: #fff; }
-[data-theme='light'] .btn.primary:hover { background: var(--moon-2); }
-[data-theme='light'] .btn.ghost { background: none; border-color: transparent; }
-[data-theme='light'] .btn.ghost:hover { background: #F4EDE5; }
-[data-theme='light'] .chip { border-radius: var(--r-sm); background: #FFFFFF; border-color: var(--line-2); }
-[data-theme='light'] .chip:hover { background: #F4EDE5; }
-[data-theme='light'] .chip.on { background: var(--moon); color: var(--moon-ink); border-color: var(--moon); font-weight: 500; }
-[data-theme='light'] .seg { border-radius: var(--r-md); background: #F4EDE5; border: 0; }
-[data-theme='light'] .seg button { border-radius: var(--r-sm); }
-[data-theme='light'] .seg button.on { background: #FFFFFF; }
-[data-theme='light'] .act .ring-i { background: #F4EDE5; }
-[data-theme='light'] .act.on .ring-i { background: var(--moon); }
-[data-theme='light'] .act.on svg { color: #fff; }
-[data-theme='light'] .arc, [data-theme='light'] .handle { filter: none; }
-[data-theme='light'] .handle { fill: #FFFFFF; stroke: var(--moon); stroke-width: 3; }
-[data-theme='light'] .orb::before { opacity: .5; }
-[data-theme='light'] .sentence input { background: #FFFFFF; border-radius: var(--r-sm); }
-[data-theme='light'] .sentence input:focus { }
-[data-theme='light'] .inline-input, [data-theme='light'] .mono { border-radius: var(--r-sm); background: #FFFFFF; }
-[data-theme='light'] .day { border-radius: var(--r-sm); background: #FFFFFF; }
-[data-theme='light'] .day.on { background: color-mix(in srgb, var(--moon) 14%, transparent); color: var(--moon); border-color: color-mix(in srgb, var(--moon) 40%, transparent); }
-[data-theme='light'] .switch.on { background: var(--moon); }
-[data-theme='light'] .switch.on::after { background: #FFFFFF; }
-[data-theme='light'] .item:hover { background: #FBF7F2; }
-[data-theme='light'] .toast { background: #FFFFFF; color: var(--ink); border: 1px solid var(--line-2); border-radius: var(--r-md); }
-[data-theme='light'] .tag { border-radius: var(--r-xs); }
-[data-theme='light'] .dry { border-radius: var(--r-sm); }
 
 /* ---------- Đồng hồ: đơn vị nằm dưới số ---------- */
 .time-in.v { align-items: flex-start; }
@@ -549,27 +491,10 @@ html.dragging-dial, html.dragging-dial * { cursor: grabbing !important; -webkit-
 :where(html) .chip { border-radius: var(--r-md); transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease); }
 .chip:hover { transform: none; }
 
-[data-theme='light'] .btn { border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--line-2); color: var(--ink); }
-[data-theme='light'] .btn:hover { background: var(--surface-3); border-color: var(--line-2); }
-[data-theme='light'] .btn.primary { border-radius: var(--r-md); border: 0; color: #fff; background: var(--moon); }
-[data-theme='light'] .btn.primary:hover { background: var(--moon-2); }
-[data-theme='light'] .btn.ghost { background: transparent; border-color: transparent; color: var(--ink-2); }
-[data-theme='light'] .btn.ghost:hover { background: var(--surface-3); color: var(--ink); }
-[data-theme='light'] .btn.danger:hover { background: color-mix(in srgb, var(--danger) 12%, transparent); border-color: color-mix(in srgb, var(--danger) 35%, transparent); color: var(--danger); }
-[data-theme='light'] .bgroup { background: var(--surface); border-color: var(--line); }
-[data-theme='light'] .bgroup button:hover { background: var(--surface-3); }
-[data-theme='light'] .chip { border-radius: var(--r-md); }
-[data-theme='light'] .chip:hover { background: var(--surface-3); border-color: var(--line-2); }
-[data-theme='light'] .act.on .ring-i { background: var(--moon); }
-[data-theme='light'] .seg { border-radius: var(--r-lg); }
-[data-theme='light'] .seg button { border-radius: var(--r-md); }
-[data-theme='light'] .seg button.on { }
-[data-theme='light'] .handle { stroke: var(--moon); }
-
 /* ---------- Mặt trời / mặt trăng ---------- */
 .cel-bg { fill: var(--bg0); }
 .cel-disc { stroke: var(--moon); stroke-width: 2;  }
-[data-theme='light'] .cel-disc { stroke: var(--moon);  }
+
 .handle-g { transition: transform .18s var(--ease), filter .18s var(--ease); }
 .dial.drag:hover .handle-g, .dial.drag:focus-visible .handle-g { transform: scale(1.12);  }
 html.dragging-dial .dial .handle-g { transform: scale(1.2);  }
@@ -577,9 +502,7 @@ html.dragging-dial .dial .handle-g { transform: scale(1.2);  }
 .dial.drag .track { transition: stroke .2s var(--ease); }
 .dial.drag:hover .track { stroke: color-mix(in srgb, var(--surface-2) 88%, var(--moon)); }
 html.dragging-dial .dial .track { stroke: color-mix(in srgb, var(--surface-2) 74%, var(--moon)); }
-[data-theme='light'] .dial.drag:hover .track { stroke: color-mix(in srgb, var(--surface-2) 94%, var(--moon)); }
-[data-theme='light'].dragging-dial .dial .track { stroke: color-mix(in srgb, var(--surface-2) 86%, var(--moon)); }
-[data-theme='light'].dragging-dial .dial .handle-g {  }
+
 html.dragging-dial .dial:focus-visible { outline-color: transparent; }
 .cel-run .cel-disc {  }
 
@@ -599,11 +522,8 @@ html.dragging-dial .dial:focus-visible { outline-color: transparent; }
 .qa { margin-left: auto; color: var(--moon); opacity: 0; transform: translateX(-4px); transition: all .18s var(--ease); flex: none; }
 .qa svg { width: 14px; height: 14px; }
 .q:hover .qa { opacity: 1; transform: none; }
-[data-theme='light'] .q:hover { background: var(--surface); }
-[data-theme='light'] .qi { background: color-mix(in srgb, var(--moon) 14%, transparent); }
 
 .cel-moon { fill: #E9EDFF; }
-[data-theme='light'] .cel-moon { fill: #3E4A7A; }
 
 /* ---------- Chuyển trạng thái mượt ----------
    Nút được giữ nguyên qua các lần vẽ lại (morph.js), nên đổi lựa chọn giờ chạy bằng transition CSS. */
@@ -612,11 +532,10 @@ html.dragging-dial .dial:focus-visible { outline-color: transparent; }
 /* Nút phân đoạn: nền của mục đang chọn là một miếng trượt (::before), vị trí do JS ghi vào --ind-x / --ind-w. */
 .seg { position: relative; isolation: isolate; border-radius: var(--r-lg); padding: 4px; background: var(--surface); border: 1px solid var(--line-2); }
 :where(html) .seg button { border-radius: var(--r-md); transition: color var(--dur-base) var(--ease); }
-.seg button.on, [data-theme='light'] .seg button.on { background: none; }
+.seg button.on { background: none; }
 .seg::before { content: ''; position: absolute; z-index: -1; left: 0; top: 4px; bottom: 4px; width: var(--ind-w, 0px);
   transform: translateX(var(--ind-x, 0px)); border-radius: var(--r-md); background: var(--surface-3);
   transition: transform var(--ind-d, .2s) var(--ease), width var(--ind-d, .2s) var(--ease); }
-[data-theme='light'] .seg::before { background: var(--surface-2); border-radius: var(--r-md); }
 
 /* ---------- Cài đặt: vừa khung ở ≥900×640 (lưới 2 cột), chỉ cuộn ở cửa sổ nhỏ hơn ---------- */
 .settings .groups { flex: 1 1 0; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-4) var(--s-6); align-content: start; overflow: visible; }
@@ -756,7 +675,7 @@ body { font-size: var(--fs-body); }
   .acts { grid-template-columns: 1fr 1fr; gap: 4px 8px; }
   .act { flex-direction: row; justify-content: flex-start; height: 28px; gap: 8px; padding: 0 2px; }
   .act svg { width: 15px; height: 15px; }
-  .act.on .ring-i, [data-theme='light'] .act.on .ring-i { }
+  .act.on .ring-i { }
   .side { gap: 10px; }
 }
 /* ---------- Hẹp: cột điều khiển giữ đủ rộng, vòng quay nhường chỗ ---------- */
@@ -768,7 +687,6 @@ body { font-size: var(--fs-body); }
 
 /* Unified timer geometry and calmer product styling. */
 :root { --ink-3: #8994B7; }
-:root[data-theme='light'] { --ink-3: #75685F; }
 
 .stage {
   display: grid;
@@ -792,8 +710,7 @@ body { font-size: var(--fs-body); }
 .stage > .chips { overflow-clip-margin: 0; contain: layout paint; }
 .stage > #spark { width: 280px !important; }
 
-.btn,
-[data-theme='light'] .btn {
+.btn {
   border-radius: var(--r-md);
   background: var(--surface);
   border: 1px solid var(--line-2);
@@ -801,31 +718,27 @@ body { font-size: var(--fs-body); }
   font-weight: 500;
   transform: none;
 }
-.btn:hover,
-[data-theme='light'] .btn:hover {
+.btn:hover {
   background: var(--surface-2);
   border-color: color-mix(in srgb, var(--ink-2) 38%, transparent);
 
   transform: none;
 }
 .btn:active { transform: translateY(1px); }
-.btn.primary,
-[data-theme='light'] .btn.primary {
+.btn.primary {
   border-radius: var(--r-md);
   background: var(--moon);
   border: 1px solid color-mix(in srgb, var(--moon) 76%, var(--ink));
   color: var(--moon-ink);
 
 }
-.btn.primary:hover,
-[data-theme='light'] .btn.primary:hover {
+.btn.primary:hover {
   background: color-mix(in srgb, var(--moon) 88%, var(--ink));
 
 }
 
 .acts { grid-template-columns: repeat(2, 1fr); gap: 6px; }
-.act,
-[data-theme='light'] .act {
+.act {
   min-height: 42px;
   padding: 6px 8px;
   flex-direction: row;
@@ -837,10 +750,8 @@ body { font-size: var(--fs-body); }
   color: var(--ink-2);
 
 }
-.act:hover,
-[data-theme='light'] .act:hover { background: var(--surface); border-color: var(--line); }
-.act .ring-i,
-[data-theme='light'] .act .ring-i {
+.act:hover { background: var(--surface); border-color: var(--line); }
+.act .ring-i {
   flex: none;
   width: 28px;
   height: 28px;
@@ -848,19 +759,16 @@ body { font-size: var(--fs-body); }
   background: var(--surface-2);
 
 }
-.act.on,
-[data-theme='light'] .act.on {
+.act.on {
   background: var(--surface-3);
   border-color: var(--moon);
 
 }
-.act.on .ring-i,
-[data-theme='light'] .act.on .ring-i {
+.act.on .ring-i {
   background: color-mix(in srgb, var(--moon) 18%, var(--surface-2));
 
 }
-.act.on svg,
-[data-theme='light'] .act.on svg { color: var(--moon); }
+.act.on svg { color: var(--moon); }
 
 .label, .seg button, .chip, .btn, .bgroup, .rail span, .act, h1, .group h2, .set b, .tag, .qt b, .eyebrow,
 .hist th, .caps span, .mini .d, .title, .dial .cap, .orb .what b, .day, .bgroup button, .tu span, .brand small,
@@ -904,8 +812,7 @@ body { font-size: var(--fs-body); }
 }
 @media (max-height: 560px) {
   .acts { grid-template-columns: repeat(2, 1fr); gap: 4px; }
-  .act,
-  [data-theme='light'] .act {
+  .act {
     min-height: 24px;
     height: 24px;
     justify-content: flex-start;
@@ -913,8 +820,7 @@ body { font-size: var(--fs-body); }
     gap: 5px;
     font-size: var(--fs-micro);
   }
-  .act .ring-i,
-  [data-theme='light'] .act .ring-i { width: 18px; height: 18px; flex: none; }
+  .act .ring-i { width: 18px; height: 18px; flex: none; }
   .act svg { width: 12px; height: 12px; }
   .side { gap: 4px; }
   .cond { gap: 4px; }
@@ -980,16 +886,6 @@ body { font-size: var(--fs-body); }
 .dd-check { width: 16px; height: 16px; flex: none; margin-left: auto; color: var(--moon); opacity: 0; }
 .dd-menu [aria-selected='true'] .dd-check { opacity: 1; }
 
-[data-theme='light'] .dd-btn { background: #FFFFFF; border-color: var(--line-2); }
-[data-theme='light'] .dd-btn:hover { border-color: #D9C8B7; }
-[data-theme='light'] .dd-btn:focus-visible, [data-theme='light'] .dd-btn[aria-expanded='true'] { border-color: var(--moon); background: #FFFFFF; }
-[data-theme='light'] .dd-ico { background: color-mix(in srgb, var(--moon) 14%, transparent); color: var(--moon); }
-[data-theme='light'] .dd-menu { background: #FFFDFB; border-color: #EDE3D8; 
- }
-[data-theme='light'] .dd-menu [role='option'] .dd-ico { background: #F4EDE5; color: var(--ink-2); }
-[data-theme='light'] .dd-menu [role='option'].active { background: #F7F0E8; }
-[data-theme='light'] .dd-menu [aria-selected='true'] .dd-ico { background: color-mix(in srgb, var(--moon) 14%, transparent); color: var(--moon); }
-
 /* Lịch lặp: mỗi dòng có ô chọn hành động riêng, cùng bề ngang để các cột thẳng hàng */
 .sinfo .days { margin-bottom: var(--s-1); }
 .dd-row .dd-btn { height: 36px; min-width: 184px; width: 192px; padding: 0 var(--s-2) 0 var(--s-1); }
@@ -1018,16 +914,6 @@ body { font-size: var(--fs-body); }
 .day.on { background: color-mix(in srgb, var(--moon) 24%, transparent); color: var(--ink); border-color: color-mix(in srgb, var(--moon) 38%, transparent); }
 .day.on:hover { background: color-mix(in srgb, var(--moon) 32%, transparent); }
 .sinfo .day { width: 32px; height: 32px; font-size: var(--fs-micro); }
-
-[data-theme='light'] .adder .time-in { background: #FFFFFF; border-color: var(--line-2); }
-[data-theme='light'] .adder .time-in:hover { border-color: #D9C8B7; }
-[data-theme='light'] .adder .time-in:focus-within { border-color: var(--moon); }
-[data-theme='light'] .adder .days { background: #F8F2EB; border-color: var(--line); }
-[data-theme='light'] .day { background: #F4EDE5; border-color: transparent; color: var(--ink-3); }
-[data-theme='light'] .adder .day { background: transparent; }
-[data-theme='light'] .day:hover, [data-theme='light'] .adder .day:hover { background: #EDE3D8; color: var(--ink-2); }
-[data-theme='light'] .day.on, [data-theme='light'] .adder .day.on { background: color-mix(in srgb, var(--moon) 14%, transparent); color: var(--moon-2); border-color: color-mix(in srgb, var(--moon) 40%, transparent); }
-[data-theme='light'] .day.on:hover { background: color-mix(in srgb, var(--moon) 22%, transparent); }
 
 @media (max-width: 900px) {
   .adder .time-in input { font-size: var(--fs-h3); }
@@ -1366,7 +1252,6 @@ body { font-size: var(--fs-body); }
 .vol:focus, .vol:focus-visible { outline: none; }
 .vol:focus-visible::-webkit-slider-thumb { }
 .snd-row.on .vol, .stage-vol .vol { --vol-fill: var(--moon); }
-[data-theme='light'] .vol::-webkit-slider-thumb { background: #FFFFFF; }
 
 /* Thanh bên: sóng nhạc nhỏ khi đang phát */
 .rail .eq { position: absolute; top: 8px; right: 15px; display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }

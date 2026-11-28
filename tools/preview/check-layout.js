@@ -1,6 +1,6 @@
 // Quét bố cục: mọi màn × mọi kích thước cửa sổ (kể cả trạng thái phóng to / thu nhỏ) × hai giao diện.
 // Không màn nào được cuộn, tràn khung, bị cắt mất nội dung hay đè lên nhau; không có lỗi console.
-// node tools/preview/check-layout.js [--theme dark|light] [--sizes 1060x760,900x640] [--shots /tmp/dir] [--rows 40]
+// node tools/preview/check-layout.js [--sizes 1060x760,900x640] [--shots /tmp/dir] [--rows 40]
 const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
@@ -9,7 +9,7 @@ const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] :
 
 // 1920×1080 và 1400×900 ~ thu nhỏ; 1060×760 mặc định; 900×640 tối thiểu; 848×608 / 707×507 / 640×480 ~ phóng to 125/150/165%.
 const SIZES = opt('--sizes', '1920x1080,1400x900,1060x760,900x640,848x608,707x507,640x480').split(',').map((s) => s.split('x').map(Number));
-const THEMES = opt('--theme', 'dark,light').split(',');
+const THEMES = opt('--theme', 'dark').split(',');
 const SHOTS = opt('--shots', null);
 const ROWS = Number(opt('--rows', '40'));
 

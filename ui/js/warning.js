@@ -9,11 +9,6 @@ function arc(c, r, f) {
   const [x, y] = pt(c, r, f);
   return `M${c} ${c - r} A${r} ${r} 0 ${f > 0.5 ? 1 : 0} 1 ${x.toFixed(2)} ${y.toFixed(2)}`;
 }
-function theme() {
-  const p = st?.settings.theme || 'dark';
-  const dark = p === 'dark' || (p === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
-  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-}
 function tone(freq, dur, vol, at = 0) {
   if (!st?.settings.sound) return;
   try {
@@ -47,7 +42,7 @@ function paint(j) {
 document.querySelectorAll('[data-post]').forEach((b) => { b.onclick = () => { firstTotal = null; sleepy.postpone(+b.dataset.post); }; });
 document.getElementById('cancel').onclick = () => sleepy.cancel();
 document.getElementById('now').onclick = () => sleepy.now();
-sleepy.getState().then((s) => { st = s; theme(); paint(s.job); chime(); });
-sleepy.onState((s) => { st = s; theme(); paint(s.job); });
+sleepy.getState().then((s) => { st = s; paint(s.job); chime(); });
+sleepy.onState((s) => { st = s; paint(s.job); });
 sleepy.onTick((s) => paint(s.job));
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') sleepy.cancel(); });

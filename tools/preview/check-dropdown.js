@@ -1,7 +1,7 @@
 // Kiểm tra ô chọn tự vẽ (ui/js/dropdown.js) ở màn Lịch lặp: mở/đóng, bàn phím (mũi tên, Home/End, gõ chữ),
 // chọn bằng chuột và phím cập nhật data-value lẫn dữ liệu đã lưu ở IPC giả lập, Escape/Tab trả focus về nút,
 // menu luôn nằm trong cửa sổ (lật lên trên khi sát đáy), sống sót qua lần vẽ lại, trang không bao giờ cuộn.
-// node tools/preview/check-dropdown.js [--theme dark|light] [--shots /tmp/dir]
+// node tools/preview/check-dropdown.js [--shots /tmp/dir]
 const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');

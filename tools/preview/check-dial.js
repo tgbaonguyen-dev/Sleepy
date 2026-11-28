@@ -1,6 +1,6 @@
 // Kiểm tra thao tác trực tiếp trên vòng quay thiết lập: kéo (ở rãnh, ở mặt, từ ô số), qua đỉnh thêm giờ,
 // lùi quá 0 thì dừng ở 0, lăn chuột, phím mũi tên, chip có hoạt ảnh, bấm vào ô số vẫn gõ được.
-// node tools/preview/check-dial.js [--theme dark|light] [--shots /tmp/dir]
+// node tools/preview/check-dial.js [--shots /tmp/dir]
 const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');

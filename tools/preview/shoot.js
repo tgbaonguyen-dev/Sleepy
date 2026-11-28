@@ -1,5 +1,5 @@
 // Chụp giao diện bằng Playwright với IPC giả lập.
-// node tools/preview/shoot.js <out.png> [--theme dark|light] [--size 1060x760] [--page warning] [--job] [--history 40] [--extra 8] [--steps "click:[data-view=presets];wait:400"]
+// node tools/preview/shoot.js <out.png> [--size 1060x760] [--page warning] [--job] [--history 40] [--extra 8] [--steps "click:[data-view=presets];wait:400"]
 // Bước: click:<sel> · wait:<ms> · key:<phím> · eval:<js> · hover:<sel> · shot:<file.png> (chụp giữa chừng) · log:<js> (ghi kết quả vào "logs")
 //       down:x,y · move:x,y[,bước] · up (chuột: nhấn / rê / thả, toạ độ px trong cửa sổ) · wheel:dx,dy · keydown:<phím> · keyup:<phím>
 const { chromium } = require('playwright');

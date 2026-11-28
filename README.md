@@ -83,13 +83,15 @@ tools/preview/ Playwright screenshots and UI checks
 
 ## Sound and image credits
 
-- **Ambient sounds & binaural beats (32 files):** from the open-source project [remvze/moodist](https://github.com/remvze/moodist).
-- **Lo-Fi music (23 tracks):** from [btahir/open-lofi](https://github.com/btahir/open-lofi), released under **CC0 1.0 Universal (Public Domain)**.
+- **Ambient sounds & binaural beats:** from [remvze/moodist](https://github.com/remvze/moodist); per Moodist, its sounds are under the Pixabay Content License or CC0.
+- **Lo-Fi music (23 tracks):** from [btahir/open-lofi](https://github.com/btahir/open-lofi), released under **CC0 1.0 Universal**.
 - **Brown / pink / white noise:** synthesized in Rust in `src-tauri/src/audio/decoder.rs`.
-- **Sound card artwork:** from [riccardobertolini/lofi-music](https://github.com/riccardobertolini/lofi-music).
+- **Sound card artwork:** from [riccardobertolini/lofi-music](https://github.com/riccardobertolini/lofi-music); the original image sources are unverified and the images are planned to be replaced.
 
-The full file list is in [src-tauri/sounds/CREDITS.md](src-tauri/sounds/CREDITS.md).
+Per-file list: [src-tauri/sounds/CREDITS.md](src-tauri/sounds/CREDITS.md). License texts: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## License
 
-MIT © Nguyen Tran Gia Bao. The Be Vietnam Pro font is licensed under the SIL OFL 1.1 (`ui/fonts/be-vietnam-pro/LICENSE`).
+Sleepy's source code is licensed under the [MIT License](LICENSE), © Nguyen Tran Gia Bao.
+
+Bundled third-party assets (sounds, music, images and the Be Vietnam Pro font) are **not** covered by the MIT License and keep their own licenses: Pixabay Content License / CC0, CC0, MIT and SIL OFL 1.1. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

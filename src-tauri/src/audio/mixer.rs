@@ -407,6 +407,13 @@ mod win_audio {
         next: usize,
     }
 
+    // SAFETY: the waveOut handle and the buffers its headers point to are owned by this
+    // struct and only ever touched by the single mixer thread that owns it. The headers
+    // and sample buffers are heap allocations (`Box`), so moving the struct onto that
+    // thread does not move the memory winmm reads, and waveOut handles are not tied to
+    // the thread that opened them.
+    unsafe impl Send for SinkProcess {}
+
     impl SinkProcess {
         pub fn spawn() -> Result<Self, String> {
             let block_align = (TARGET_CHANNELS * 2) as u16;

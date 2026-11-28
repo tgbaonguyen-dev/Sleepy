@@ -9,7 +9,7 @@
   const actions = ['shutdown', 'reboot', 'suspend', 'hibernate', 'lock', 'logout'];
   const st = {
     settings: { warnMinutes: 2, graceSeconds: 60, sound: true, dryRun: !!cfg.dryRun, closeToTray: true, autostart: false,
-      startMinimized: false, keepAwake: true, theme: cfg.theme, preCommand: '' },
+      startMinimized: false, keepAwake: true, preCommand: '' },
     presets: [
       { id: 'p1', name: 'Tạm ngưng sau 30 phút', action: 'suspend', trigger: { type: 'countdown', seconds: 1800 } },
       { id: 'p2', name: 'Tắt máy sau 2 giờ', action: 'shutdown', trigger: { type: 'countdown', seconds: 7200 } },

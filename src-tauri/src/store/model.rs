@@ -19,8 +19,6 @@ pub struct Settings {
     pub start_minimized: bool,
     /// Keep the display and session awake while a job is active.
     pub keep_awake: bool,
-    /// `dark` | `light` | `system`.
-    pub theme: String,
     /// Lệnh shell chạy ngay trước khi thực hiện.
     pub pre_command: String,
 }
@@ -36,7 +34,6 @@ impl Default for Settings {
             autostart: false,
             start_minimized: false,
             keep_awake: true,
-            theme: "dark".into(),
             pre_command: String::new(),
         }
     }

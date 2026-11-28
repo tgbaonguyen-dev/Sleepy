@@ -1456,28 +1456,33 @@ function setRow(title, desc, ctl) { return `<div class="set"><div class="set-inf
 function viewSettings() {
   const capWord = { yes: ['Được', 'yes'], challenge: ['Cần mật khẩu', ''], no: ['Không', 'no'], na: ['Không hỗ trợ', 'no'], unknown: ['Chưa rõ', ''] };
   return `<section class="view settings" data-key="v-settings">
-    <div class="head"><h1>Cài đặt</h1></div>
-    <div class="groups">
+    <div class="head"><h1>Cài đặt</h1><span class="page-meta">Sleepy 2.0</span></div>
+    <div class="groups" tabindex="0" data-scroll-region aria-label="Danh sách cài đặt">
       <div class="card group" data-g="warn"><h2>Cảnh báo</h2>
-        ${setRow('Báo trước', 'Hiển thị cửa sổ cảnh báo trước khi thực hiện hành động.', seg('warnMinutes', [[0, 'Không'], [1, '1 phút'], [2, '2 phút'], [5, '5 phút'], [10, '10 phút']]))}
-        ${setRow('Thời gian chờ sau điều kiện', 'Khoảng trì hoãn sau khi điều kiện được đáp ứng.', seg('graceSeconds', [[30, '30 giây'], [60, '60 giây'], [120, '2 phút']]))}
+        <div class="set set-seg-wide"><div class="set-info"><b>Báo trước</b><p>Hiển thị cửa sổ cảnh báo trước khi thực hiện hành động.</p></div><div class="set-ctl">${seg('warnMinutes', [[0, 'Không'], [1, '1 phút'], [2, '2 phút'], [5, '5 phút'], [10, '10 phút']])}</div></div>
+        <div class="set set-seg-wide"><div class="set-info"><b>Thời gian chờ sau điều kiện</b><p>Khoảng trì hoãn sau khi điều kiện được đáp ứng.</p></div><div class="set-ctl">${seg('graceSeconds', [[30, '30 giây'], [60, '60 giây'], [120, '2 phút']])}</div></div>
         ${setRow('Âm báo', 'Phát âm thanh khi cảnh báo và trong 10 giây cuối.', sw('sound', 'Âm báo'))}
       </div>
       <div class="card group" data-g="app"><h2>Ứng dụng</h2>
-        ${setRow('Giao diện', 'Chọn giao diện hiển thị.', seg('theme', [['dark', 'Tối'], ['light', 'Sáng'], ['system', 'Theo hệ thống']]))}
-        ${setRow('Giữ hệ thống hoạt động', 'Ngăn màn hình tắt và hệ thống tự chuyển sang chế độ ngủ khi hẹn giờ đang chạy.', sw('keepAwake', 'Giữ hệ thống hoạt động'))}
+        ${setRow('Giao diện', 'Chọn giao diện hiển thị.', seg('theme', [['dark', 'Tối'], ['light', 'Sáng'], ['system', 'Hệ thống']]))}
+        ${setRow('Giữ hệ thống hoạt động', 'Ngăn màn hình tắt và máy ngủ khi đang hẹn giờ.', sw('keepAwake', 'Giữ hệ thống hoạt động'))}
         ${setRow('Thu nhỏ vào khay khi đóng', 'Tiếp tục chạy hẹn giờ khi cửa sổ chính đóng.', sw('closeToTray', 'Thu nhỏ vào khay khi đóng'))}
         ${setRow('Khởi động cùng hệ thống', 'Khởi động Sleepy sau khi đăng nhập.', sw('autostart', 'Khởi động cùng hệ thống'))}
         ${setRow('Khởi động ở chế độ thu nhỏ', 'Mở ứng dụng ở trạng thái thu nhỏ vào khay.', sw('startMinimized', 'Khởi động ở chế độ thu nhỏ'))}
       </div>
       <div class="card group" data-g="adv"><h2>Nâng cao</h2>
-        <div class="set ${st.settings.dryRun ? 'set-warn' : ''}"><div class="set-info"><b>Chế độ thử</b><p>Chỉ hiển thị thông báo, không thực hiện hành động hệ thống.</p></div><div class="set-ctl">${sw('dryRun', 'Chế độ thử')}</div></div>
-        ${setRow('Lệnh chạy trước', 'Thực thi lệnh trước hành động, với thời gian chờ tối đa 30 giây. Ví dụ: <span class="mono-inline">playerctl pause</span>.', `<input class="mono" data-text="preCommand" value="${esc(st.settings.preCommand)}" placeholder="Để trống nếu không sử dụng" spellcheck="false" aria-label="Lệnh chạy trước">`)}
-        <div class="set set-block"><b>Quyền thực hiện hành động</b>
-          <div class="caps">${ORDER.map((k) => { const c = capWord[st.caps?.[k]] || capWord.unknown; return `<div><span>${S.ACTIONS[k].label}</span><span class="${c[1]}">${c[0]}</span></div>`; }).join('')}</div></div>
-        ${setRow('Dữ liệu', `<span class="mono-inline">${DATA_PATH}</span>`, `<button class="btn small" data-do="copy-data-path">${Icons.copy}<span>Sao chép đường dẫn</span></button>`)}
+        <div class="adv-grid">
+          <div class="adv-col">
+            <div class="set ${st.settings.dryRun ? 'set-warn' : ''}"><div class="set-info"><b>Chế độ thử</b><p>Chỉ hiển thị thông báo, không thực hiện hành động hệ thống.</p></div><div class="set-ctl">${sw('dryRun', 'Chế độ thử')}</div></div>
+            ${setRow('Dữ liệu', `<span class="mono-inline mono-path" title="${DATA_PATH}">${DATA_PATH}</span>`, `<button class="btn small" data-do="copy-data-path">${Icons.copy}<span>Sao chép</span></button>`)}
+          </div>
+          <div class="adv-col">
+            ${setRow('Lệnh chạy trước', 'Chạy trước hành động (tối đa 30 giây).', `<input class="mono" data-text="preCommand" value="${esc(st.settings.preCommand)}" placeholder="vd: playerctl pause" spellcheck="false" aria-label="Lệnh chạy trước">`)}
+            <div class="set set-block"><b>Quyền thực hiện hành động</b>
+              <div class="caps">${ORDER.map((k) => { const c = capWord[st.caps?.[k]] || capWord.unknown; return `<div><span>${S.ACTIONS[k].label}</span><span class="${c[1]}">${c[0]}</span></div>`; }).join('')}</div></div>
+          </div>
+        </div>
       </div>
-      <p class="note ver">Sleepy 2.0</p>
     </div>
   </section>`;
 }

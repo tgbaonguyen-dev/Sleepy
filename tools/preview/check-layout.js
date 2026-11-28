@@ -25,12 +25,13 @@ const STATES = [
   ['sounds-lofi', ['[data-snd=lofi]']],
   ['presets', ['[data-view=presets]']],
   ['presets-p2', ['[data-page="presets:1"]']],
+  ['presets-menu', ['[data-pmenu]']],
   ['schedules', ['[data-view=schedules]']],
+  ['schedules-menu', ['[data-smenu]']],
   ['history', ['[data-view=history]']],
   ['history-p2', ['[data-page="history:1"]']],
+  ['history-filtered', ['.dd-hfilter .dd-btn', '[role=option][data-value=error]']],
   ['settings', ['[data-view=settings]']],
-  ['settings-app', ['[data-stab=app]']],
-  ['settings-adv', ['[data-stab=adv]']],
 ];
 
 async function audit(p) {
@@ -41,18 +42,26 @@ async function audit(p) {
     if (main.scrollHeight > main.clientHeight + 1 || main.scrollWidth > main.clientWidth + 1) issues.push(`#main overflows (${main.scrollWidth}×${main.scrollHeight} in ${main.clientWidth}×${main.clientHeight})`);
     const name = (el) => el.id ? `#${el.id}` : `${el.localName}${el.classList.length ? '.' + [...el.classList].join('.') : ''}`;
     const visible = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'; };
+    const isScrollableRegion = (el) => {
+      if (!el?.matches?.('[data-scroll-region]')) return false;
+      const oy = getComputedStyle(el).overflowY;
+      return oy === 'auto' || oy === 'scroll';
+    };
     for (const el of document.querySelectorAll('.app *')) {
       if (el.closest('svg') || el.closest('.clip-fit') || !visible(el)) continue;
       const cs = getComputedStyle(el);
       if (cs.display === 'inline' || ['INPUT', 'SELECT', 'OPTION', 'DATALIST'].includes(el.tagName)) continue;
+      const selfScroll = isScrollableRegion(el);
+      const ancestorScroll = el.parentElement?.closest('[data-scroll-region]');
+      const inScrollRegion = !!(ancestorScroll && isScrollableRegion(ancestorScroll));
       // Nội dung tràn khỏi hộp của chính nó (bị cắt, hoặc đè lên phần bên dưới). Bỏ qua hộp chỉ chứa chữ
-      // (nét chữ lớn nhô khỏi line-height) và vòng tròn có núm kéo cố ý nhô ra ngoài (.dial, .orb).
+      // (nét chữ lớn nhô khỏi line-height), vòng tròn có núm kéo (.dial, .orb), và vùng cuộn có chủ đích ([data-scroll-region]).
       const textOnly = [...el.children].every((c) => getComputedStyle(c).display.startsWith('inline'));
-      if (!textOnly && !el.matches('.dial, .orb') && el.scrollHeight > el.clientHeight + 2 && el.clientHeight > 0) issues.push(`${name(el)} content taller than box (${el.scrollHeight} > ${el.clientHeight})`);
+      if (!textOnly && !selfScroll && !el.matches('.dial, .orb') && el.scrollHeight > el.clientHeight + 2 && el.clientHeight > 0) issues.push(`${name(el)} content taller than box (${el.scrollHeight} > ${el.clientHeight})`);
       if (cs.textOverflow !== 'ellipsis' && el.scrollWidth > el.clientWidth + 2 && el.clientWidth > 0) issues.push(`${name(el)} content wider than box (${el.scrollWidth} > ${el.clientWidth})`);
-      // Phần tử nằm ngoài cửa sổ
+      // Phần tử nằm ngoài cửa sổ (bỏ qua tràn dọc bên trong vùng cuộn có chủ đích)
       const r = el.getBoundingClientRect();
-      if (r.right > W + 1 || r.bottom > H + 1 || r.left < -1 || r.top < -1) issues.push(`${name(el)} outside the window (${Math.round(r.left)},${Math.round(r.top)} → ${Math.round(r.right)},${Math.round(r.bottom)})`);
+      if (r.right > W + 1 || r.left < -1 || (!inScrollRegion && (r.bottom > H + 1 || r.top < -1))) issues.push(`${name(el)} outside the window (${Math.round(r.left)},${Math.round(r.top)} → ${Math.round(r.right)},${Math.round(r.bottom)})`);
     }
     return [...new Set(issues)].slice(0, 8);
   });

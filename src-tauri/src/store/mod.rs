@@ -8,7 +8,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-pub use model::{Data, HistoryEntry, Preset, Schedule, Settings};
+pub use model::{Data, HistoryEntry, MixPreset, Preset, Schedule, Settings};
 
 const FILE_NAME: &str = "sleepy.json";
 const HISTORY_LIMIT: usize = 200;
@@ -91,10 +91,10 @@ mod tests {
 
     #[test]
     fn reads_partial_settings_with_defaults() {
-        let d: Data = serde_json::from_str(r#"{"settings":{"sound":false}}"#).unwrap();
+        // Old configs may still carry the removed `theme` key; it must be ignored.
+        let d: Data = serde_json::from_str(r#"{"settings":{"sound":false,"theme":"light"}}"#).unwrap();
         assert!(!d.settings.sound);
         assert_eq!(d.settings.warn_minutes, 2);
-        assert_eq!(d.settings.theme, "dark");
     }
 
     #[test]

@@ -39,7 +39,7 @@ impl Action {
         match self {
             Action::Shutdown => "Tắt máy",
             Action::Reboot => "Khởi động lại",
-            Action::Suspend => "Ngủ",
+            Action::Suspend => "Tạm ngưng",
             Action::Hibernate => "Ngủ đông",
             Action::Lock => "Khoá màn hình",
             Action::Logout => "Đăng xuất",
@@ -51,7 +51,7 @@ impl Action {
         match self {
             Action::Shutdown => "tắt máy",
             Action::Reboot => "khởi động lại",
-            Action::Suspend => "cho máy ngủ",
+            Action::Suspend => "tạm ngưng hệ thống",
             Action::Hibernate => "ngủ đông",
             Action::Lock => "khoá màn hình",
             Action::Logout => "đăng xuất",

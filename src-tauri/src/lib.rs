@@ -9,6 +9,7 @@
 //! - `app`       nối tất cả với Tauri: lệnh IPC, khay, cửa sổ, vòng lặp nền.
 
 mod app;
+pub mod audio;
 pub mod domain;
 pub mod engine;
 pub mod sensors;
@@ -38,6 +39,34 @@ pub fn run() {
             proc_list,
             proc_check,
             win_action,
+            audio_state,
+            audio_toggle_play,
+            audio_toggle_channel,
+            audio_set_volume,
+            audio_set_master,
+            audio_set_fade,
+            audio_apply_preset,
+            audio_skip_lofi,
+            audio_prev_lofi,
+            audio_select_lofi,
+            audio_seek_lofi,
+            audio_cycle_lofi_loop,
+            audio_set_pan,
+            audio_toggle_swell,
+            audio_shuffle_mix,
+            audio_clear_all,
+            audio_apply_custom_mix,
+            audio_save_mix,
+            audio_delete_mix,
+            audio_pick_folder,
+            audio_pick_files,
+            audio_remove_custom_track,
+            yt_open,
+            yt_hide,
+            yt_close,
+            yt_status,
+            yt_media,
+            yt_control,
         ])
         .run(tauri::generate_context!())
         .expect("không khởi động được Sleepy");

@@ -3,20 +3,20 @@
   const ACTIONS = {
     shutdown: { label: 'Tắt máy', verb: 'Tắt máy', hint: 'Tắt hoàn toàn' },
     reboot: { label: 'Khởi động lại', verb: 'Khởi động lại', hint: 'Tắt rồi bật lại' },
-    suspend: { label: 'Ngủ', verb: 'Cho máy ngủ', hint: 'Suspend vào RAM' },
-    hibernate: { label: 'Ngủ đông', verb: 'Ngủ đông', hint: 'Lưu ra ổ đĩa' },
-    lock: { label: 'Khoá màn hình', verb: 'Khoá màn hình', hint: 'Giữ nguyên mọi thứ' },
+    suspend: { label: 'Tạm ngưng', verb: 'Tạm ngưng hệ thống', hint: 'Lưu phiên làm việc trong RAM' },
+    hibernate: { label: 'Ngủ đông', verb: 'Ngủ đông', hint: 'Lưu phiên làm việc vào ổ đĩa' },
+    lock: { label: 'Khoá màn hình', verb: 'Khoá màn hình', hint: 'Giữ nguyên phiên làm việc' },
     logout: { label: 'Đăng xuất', verb: 'Đăng xuất', hint: 'Đóng phiên làm việc' }
   };
 
   const TRIGGERS = {
-    countdown: 'Sau bao lâu',
-    at: 'Đúng giờ',
-    idle: 'Không đụng máy',
-    battery: 'Pin sắp cạn',
-    net: 'Tải xong',
-    cpu: 'Máy hết bận',
-    process: 'Tắt một app'
+    countdown: 'Theo thời lượng',
+    at: 'Theo giờ',
+    idle: 'Không hoạt động',
+    battery: 'Mức pin',
+    net: 'Lưu lượng mạng',
+    cpu: 'Mức sử dụng CPU',
+    process: 'Ứng dụng kết thúc'
   };
 
   const DAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
@@ -61,11 +61,11 @@
     switch (t.type) {
       case 'countdown': return `sau ${human(t.seconds * 1000)}`;
       case 'at': return `lúc ${t.time}`;
-      case 'idle': return `khi bạn rời máy ${t.minutes} phút`;
+      case 'idle': return `sau ${t.minutes} phút không hoạt động`;
       case 'battery': return `khi pin còn dưới ${t.percent}%`;
-      case 'net': return `khi tải xong (mạng dưới ${t.kbps} KB/s suốt ${t.minutes} phút)`;
-      case 'cpu': return `khi máy hết bận (CPU dưới ${t.percent}% suốt ${t.minutes} phút)`;
-      case 'process': return `khi “${t.name}” đóng lại`;
+      case 'net': return `khi lưu lượng mạng dưới ${t.kbps} KB/s trong ${t.minutes} phút`;
+      case 'cpu': return `khi CPU dưới ${t.percent}% trong ${t.minutes} phút`;
+      case 'process': return `khi tiến trình "${t.name}" kết thúc`;
       default: return '';
     }
   }

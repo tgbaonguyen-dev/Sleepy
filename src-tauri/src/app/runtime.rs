@@ -4,25 +4,42 @@ use std::time::Duration;
 
 use tauri::{AppHandle, Emitter, Manager};
 
-use super::{dispatch, tray, AppState};
+use super::{dispatch, sync_keep_awake, tray, windows, AppState};
+use crate::audio::AudioCmd;
 use crate::domain::time::now_ms;
 
 pub fn spawn(app: AppHandle) {
     std::thread::Builder::new()
         .name("sleepy-tick".into())
-        .spawn(move || loop {
-            std::thread::sleep(Duration::from_secs(1));
-            let (events, snapshot) = {
-                let state = app.state::<AppState>();
-                let mut core = state.lock();
-                let core = &mut *core;
-                let now = now_ms();
-                let events = core.engine.tick(&mut core.store, &mut core.sensors, now);
-                (events, core.engine.snapshot(&core.store, now))
-            };
-            app.emit("tick", snapshot).ok();
-            dispatch::handle(&app, events);
-            tray::refresh(&app, false);
+        .spawn(move || {
+            let mut last_yt: Option<windows::YtMediaState> = None;
+            loop {
+                std::thread::sleep(Duration::from_secs(1));
+                let (events, snapshot) = {
+                    let state = app.state::<AppState>();
+                    let mut core = state.lock();
+                    let core = &mut *core;
+                    let now = now_ms();
+                    let events = core.engine.tick(&mut core.store, &mut core.sensors, now);
+                    (events, core.engine.snapshot(&core.store, now))
+                };
+                let remaining_ms = snapshot.job.as_ref().and_then(|j| j.remaining);
+                let active = snapshot.job.is_some();
+                app.state::<AppState>()
+                    .audio
+                    .send(AudioCmd::SyncTimer { remaining_ms, active });
+                let yt = windows::youtube_media(&app);
+                if last_yt.as_ref() != Some(&yt) {
+                    app.emit("yt-media", &yt).ok();
+                    last_yt = Some(yt);
+                }
+                app.emit("tick", snapshot).ok();
+                dispatch::handle(&app, events);
+                if let Err(error) = sync_keep_awake(&app) {
+                    eprintln!("Không đồng bộ được chế độ giữ màn hình sáng: {error}");
+                }
+                tray::refresh(&app, false);
+            }
         })
         .expect("không tạo được luồng nền");
 }

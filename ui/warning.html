@@ -2,46 +2,59 @@
 <html lang="vi" data-theme="dark">
 <head>
   <meta charset="UTF-8">
-  <title>Sleepy — sắp đến giờ</title>
+  <title>Sleepy | Cảnh báo hẹn giờ</title>
   <link rel="stylesheet" href="css/styles.css">
   <style>
     html, body { background: transparent; }
     body::before { display: none; }
-    .card-w { position: absolute; inset: 10px; border-radius: 26px; overflow: hidden; display: grid; grid-template-columns: 132px 1fr; gap: 18px; padding: 20px 22px 18px 20px;
+    .card-w { position: absolute; inset: 10px; border-radius: var(--r-lg); overflow: hidden;
+      display: grid; grid-template-columns: 112px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; column-gap: var(--s-4); row-gap: var(--s-3);
+      padding: var(--s-4) var(--s-3) var(--s-3) var(--s-4);
       background: radial-gradient(300px 200px at 0% 0%, var(--halo), transparent 70%), linear-gradient(160deg, var(--bg1), var(--bg0));
-      border: 1px solid var(--line-2); box-shadow: 0 18px 40px -12px rgba(0,0,0,.6); -webkit-app-region: drag; animation: slide .5s var(--ease); }
+      border: 1px solid var(--line-2); box-shadow: var(--shadow); -webkit-app-region: drag; animation: slide var(--dur-slow) var(--ease); }
     .card-w.final { border-color: color-mix(in srgb, var(--danger) 60%, transparent); }
-    @keyframes slide { from { transform: translateX(60px); opacity: 0; } }
-    .ring { position: relative; width: 132px; height: 132px; }
+    @keyframes slide { from { transform: translateX(48px); opacity: 0; } }
+    .ring { position: relative; width: 112px; height: 112px; align-self: center; }
     .ring svg { width: 100%; height: 100%; overflow: visible; }
+    .ring .track { stroke: var(--surface-3); }
     .ring .ic { position: absolute; inset: 0; display: grid; place-items: center; color: var(--moon); }
-    .ring .ic svg { width: 34px; height: 34px; }
-    .card-w.hot .ring .ic { color: var(--lamp); } .card-w.final .ring .ic { color: var(--danger); animation: beat 1s infinite; }
+    .ring .ic svg { width: 30px; height: 30px; }
+    .card-w.hot .ring .ic { color: var(--lamp); }
+    .card-w.final .ring .ic { color: var(--danger); animation: beat 1s infinite; }
     @keyframes beat { 50% { transform: scale(1.12); } }
-    .info { display: flex; flex-direction: column; justify-content: center; }
-    .title { font-size: 13px; color: var(--ink-2); font-weight: 550; }
-    .clock { font-size: 58px; font-weight: 250; letter-spacing: -.045em; line-height: 1.05; transition: color .5s; }
-    .card-w.hot .clock { color: var(--lamp); } .card-w.final .clock { color: var(--danger); }
-    .msg { color: var(--ink-3); font-size: 12.5px; margin-top: 2px; }
+    .info { display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+    .w-title { font-size: var(--fs-control); color: var(--ink-2); font-weight: 600; }
+    .clock { font-size: clamp(40px, 12vw, 52px); font-weight: 300; letter-spacing: -.03em; line-height: var(--lh-display); transition: color var(--dur-slow); }
+    .card-w.hot .clock { color: var(--lamp); }
+    .card-w.final .clock { color: var(--danger); }
+    .msg { color: var(--ink-3); font-size: var(--fs-caption); line-height: var(--lh-caption); margin-top: var(--s-1); min-height: calc(2em * var(--lh-caption)); }
     .msg b { color: var(--ink-2); font-weight: 600; }
-    .row2 { grid-column: 1 / -1; display: flex; gap: 6px; align-items: center; -webkit-app-region: no-drag; }
-    .row2 .gap { flex: 1; }
-    .row2 .btn { padding: 8px 14px; font-size: 13px; }
+    .msg.hint { color: var(--lamp); }
+    .row2 { grid-column: 1 / -1; display: flex; gap: var(--s-2); align-items: center; -webkit-app-region: no-drag; min-width: 0; }
+    .row2 .gap { flex: 1; min-width: 0; }
+    .row2 .bgroup { flex: none; padding: 2px; gap: 2px; }
+    .row2 .bgroup button { padding: 0 var(--s-2); min-height: 28px; white-space: nowrap; }
+    .row2 .btn { flex: none; min-height: 32px; padding: 0 var(--s-3); font-size: var(--fs-control); }
+    .hold-btn.armed { color: var(--ink); background: color-mix(in srgb, var(--danger) 22%, transparent); }
+    @media (prefers-reduced-motion: reduce) { .card-w, .card-w.final .ring .ic { animation: none; } }
   </style>
 </head>
 <body>
-  <div class="card-w" id="card" data-tauri-drag-region>
-    <div class="ring"><svg viewBox="0 0 132 132" id="ring"></svg><div class="ic" id="ic"></div></div>
+  <div class="card-w" id="card" data-tauri-drag-region role="alertdialog" aria-labelledby="title" aria-describedby="msg">
+    <div class="ring"><svg viewBox="0 0 132 132" id="ring" aria-hidden="true"></svg><div class="ic" id="ic" aria-hidden="true"></div></div>
     <div class="info">
-      <div class="title" id="title">Sắp tắt máy</div>
-      <div class="clock num" id="clock">--:--</div>
-      <div class="msg" id="msg"></div>
+      <div class="w-title" id="title">Sắp thực hiện: tắt máy</div>
+      <div class="clock num" id="clock" aria-live="off">--:--</div>
+      <div class="msg" id="msg" aria-live="polite"></div>
     </div>
     <div class="row2">
-      <div class="bgroup"><span>Hoãn</span><button data-post="5">5 phút</button><button data-post="15">15 phút</button></div>
+      <div class="bgroup" role="group" aria-label="Hoãn hẹn giờ">
+        <button data-post="5" title="Hoãn thêm 5 phút">+5 phút</button>
+        <button data-post="15" title="Hoãn thêm 15 phút">+15 phút</button>
+      </div>
       <span class="gap"></span>
-      <button class="btn ghost" id="now">Làm ngay</button>
-      <button class="btn primary" id="cancel">Huỷ</button>
+      <button class="btn danger-ghost hold-btn" id="now" title="Nhấn giữ 0.8 giây để thực hiện ngay (bàn phím: nhấn Enter hai lần)">Thực hiện ngay…</button>
+      <button class="btn primary" id="cancel" title="Huỷ hẹn giờ (Esc hoặc Ctrl+.)">Huỷ hẹn giờ</button>
     </div>
   </div>
   <script src="js/bridge.js"></script>

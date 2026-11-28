@@ -36,15 +36,15 @@ impl Trigger {
         match self {
             Trigger::Countdown { seconds } => format!("sau {}", human(*seconds as i64 * 1000)),
             Trigger::At { time } => format!("lúc {time}"),
-            Trigger::Idle { minutes } => format!("khi bạn rời máy {minutes} phút"),
+            Trigger::Idle { minutes } => format!("sau {minutes} phút không hoạt động"),
             Trigger::Battery { percent } => format!("khi pin còn dưới {percent}%"),
             Trigger::Net { kbps, minutes } => {
-                format!("khi tải xong (mạng dưới {kbps} KB/s suốt {minutes} phút)")
+                format!("khi lưu lượng mạng dưới {kbps} KB/s trong {minutes} phút")
             }
             Trigger::Cpu { percent, minutes } => {
-                format!("khi máy hết bận (CPU dưới {percent}% suốt {minutes} phút)")
+                format!("khi CPU dưới {percent}% trong {minutes} phút")
             }
-            Trigger::Process { name } => format!("khi “{name}” đóng lại"),
+            Trigger::Process { name } => format!("khi tiến trình \"{name}\" kết thúc"),
         }
     }
 }
@@ -76,7 +76,7 @@ mod tests {
         );
         assert_eq!(
             Trigger::Process { name: "obs".into() }.describe(),
-            "khi “obs” đóng lại"
+            "khi tiến trình \"obs\" kết thúc"
         );
     }
 }

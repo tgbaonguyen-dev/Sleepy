@@ -255,7 +255,7 @@ fn process_condition() {
         0,
         &f,
     );
-    assert_eq!(err.unwrap_err(), "“obs” không đang chạy");
+    assert_eq!(err.unwrap_err(), "Tiến trình \"obs\" không hoạt động");
     f.running.push("obs".into());
     e.start(
         &mut s,

@@ -10,6 +10,7 @@ use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager, Wry};
 
 use super::{dispatch, show_main, AppState};
+use crate::audio::{catalog::PRESET_MIXES, AudioCmd};
 use crate::domain::format::{hhmm, human};
 use crate::domain::time::now_ms;
 use crate::domain::{Action, Phase, Trigger};
@@ -30,7 +31,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(Image::from_bytes(IDLE_ICON)?)
         .tooltip("Sleepy")
-        .menu(&build_menu(app, "Không có hẹn giờ", false, false)?)
+        .menu(&build_menu(app, "Không có hẹn giờ", false, false, false)?)
         .on_menu_event(on_menu)
         .build(app)?;
     Ok(())
@@ -93,12 +94,13 @@ pub fn refresh(app: &AppHandle, force: bool) {
         tray.set_icon(img).ok();
         last.icon_key = icon_key;
     }
-    let menu_key = format!("{status}|{has_job}|{}", preset_key(app));
+    let audio_playing = app.state::<AppState>().audio.snapshot().playing;
+    let menu_key = format!("{status}|{has_job}|{audio_playing}|{}", preset_key(app));
     if force || menu_key != last.menu_key {
-        if let Ok(menu) = build_menu(app, &status, has_job, can_postpone) {
+        if let Ok(menu) = build_menu(app, &status, has_job, can_postpone, audio_playing) {
             tray.set_menu(Some(menu)).ok();
         }
-        tray.set_tooltip(Some(format!("Sleepy — {status}"))).ok();
+        tray.set_tooltip(Some(format!("Sleepy | {status}"))).ok();
         last.menu_key = menu_key;
     }
 }
@@ -113,15 +115,30 @@ enum IconState {
 fn preset_key(app: &AppHandle) -> String {
     let state = app.state::<AppState>();
     let core = state.lock();
-    core.store
+    let timer_presets: String = core
+        .store
         .data
         .presets
         .iter()
         .map(|p| format!("{}{}", p.id, p.name))
-        .collect()
+        .collect();
+    let mix_presets: String = core
+        .store
+        .data
+        .mix_presets
+        .iter()
+        .map(|m| format!("{}{}", m.id, m.name))
+        .collect();
+    format!("{timer_presets}|{mix_presets}")
 }
 
-fn build_menu(app: &AppHandle, status: &str, has_job: bool, can_postpone: bool) -> tauri::Result<Menu<Wry>> {
+fn build_menu(
+    app: &AppHandle,
+    status: &str,
+    has_job: bool,
+    can_postpone: bool,
+    audio_playing: bool,
+) -> tauri::Result<Menu<Wry>> {
     let item = |id: &str, text: &str, enabled: bool| MenuItem::with_id(app, id, text, enabled, None::<&str>);
     let quick = |action: Action, minutes: &[u64]| -> tauri::Result<Submenu<Wry>> {
         let items = minutes
@@ -174,6 +191,42 @@ fn build_menu(app: &AppHandle, status: &str, has_job: bool, can_postpone: bool) 
             preset_items.iter().map(|i| i as &dyn IsMenuItem<Wry>).collect();
         owned.push(Box::new(Submenu::with_items(app, "Preset", true, &refs)?));
     }
+    let sep_audio = PredefinedMenuItem::separator(app)?;
+    owned.push(Box::new(sep_audio));
+    owned.push(Box::new(item(
+        "audio:toggle",
+        if audio_playing {
+            "Âm thanh: Tạm dừng"
+        } else {
+            "Âm thanh: Phát"
+        },
+        true,
+    )?));
+    let custom_mixes: Vec<(String, String)> = {
+        let state = app.state::<AppState>();
+        let core = state.lock();
+        core.store
+            .data
+            .mix_presets
+            .iter()
+            .map(|m| (m.id.clone(), m.name.clone()))
+            .collect()
+    };
+    let mut mix_items: Vec<MenuItem<Wry>> = PRESET_MIXES
+        .iter()
+        .map(|p| item(&format!("audio:preset:{}", p.id), p.name, true))
+        .collect::<tauri::Result<_>>()?;
+    for (id, name) in custom_mixes {
+        mix_items.push(item(&format!("audio:custom:{id}"), &name, true)?);
+    }
+    let mix_refs: Vec<&dyn IsMenuItem<Wry>> = mix_items.iter().map(|i| i as &dyn IsMenuItem<Wry>).collect();
+    owned.push(Box::new(Submenu::with_items(
+        app,
+        "Bộ mix nhanh",
+        true,
+        &mix_refs,
+    )?));
+
     owned.push(Box::new(sep2));
     owned.push(Box::new(quit));
     let refs: Vec<&dyn IsMenuItem<Wry>> = owned.iter().map(|b| b.as_ref()).collect();
@@ -185,7 +238,34 @@ fn on_menu(app: &AppHandle, event: MenuEvent) {
     match id.as_str() {
         "open" => return show_main(app),
         "quit" => return app.exit(0),
+        "audio:toggle" => {
+            app.state::<AppState>().audio.send(AudioCmd::TogglePlay);
+            refresh(app, true);
+            return;
+        }
         _ => {}
+    }
+    if let Some(pid) = id.strip_prefix("audio:preset:") {
+        app.state::<AppState>()
+            .audio
+            .send(AudioCmd::ApplyPreset(pid.to_string()));
+        refresh(app, true);
+        return;
+    }
+    if let Some(mid) = id.strip_prefix("audio:custom:") {
+        let mix = {
+            let state = app.state::<AppState>();
+            let core = state.lock();
+            core.store.data.mix_presets.iter().find(|m| m.id == mid).cloned()
+        };
+        if let Some(m) = mix {
+            app.state::<AppState>().audio.send(AudioCmd::ApplyCustomMix {
+                id: m.id,
+                channels: m.channels,
+            });
+            refresh(app, true);
+        }
+        return;
     }
     let state = app.state::<AppState>();
     let now = now_ms();

@@ -17,8 +17,8 @@ pub struct Settings {
     pub close_to_tray: bool,
     pub autostart: bool,
     pub start_minimized: bool,
-    /// `dark` | `light` | `system`.
-    pub theme: String,
+    /// Keep the display and session awake while a job is active.
+    pub keep_awake: bool,
     /// Lệnh shell chạy ngay trước khi thực hiện.
     pub pre_command: String,
 }
@@ -33,7 +33,7 @@ impl Default for Settings {
             close_to_tray: true,
             autostart: false,
             start_minimized: false,
-            theme: "dark".into(),
+            keep_awake: true,
             pre_command: String::new(),
         }
     }
@@ -78,6 +78,13 @@ pub struct HistoryEntry {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MixPreset {
+    pub id: String,
+    pub name: String,
+    pub channels: Vec<(String, f32)>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Data {
     pub version: u32,
@@ -88,6 +95,12 @@ pub struct Data {
     pub job: Option<Job>,
     /// Bản nháp của màn hẹn giờ — giao diện tự quản lý cấu trúc.
     pub draft: Value,
+    /// Các bộ mix âm thanh do người dùng tự lưu.
+    #[serde(default)]
+    pub mix_presets: Vec<MixPreset>,
+    /// Đường dẫn các tệp nhạc cá nhân người dùng tự thêm.
+    #[serde(default)]
+    pub custom_tracks: Vec<String>,
 }
 
 impl Default for Data {
@@ -103,21 +116,29 @@ impl Default for Data {
             version: 2,
             settings: Settings::default(),
             presets: vec![
-                preset("Ngủ trưa", Action::Suspend, Trigger::Countdown { seconds: 1800 }),
                 preset(
-                    "Xem phim rồi ngủ",
+                    "Tạm ngưng sau 30 phút",
+                    Action::Suspend,
+                    Trigger::Countdown { seconds: 1800 },
+                ),
+                preset(
+                    "Tắt máy sau 2 giờ",
                     Action::Shutdown,
                     Trigger::Countdown { seconds: 7200 },
                 ),
                 preset(
-                    "Tải xong thì tắt",
+                    "Tắt máy khi tải hoàn tất",
                     Action::Shutdown,
                     Trigger::Net {
                         kbps: 50.0,
                         minutes: 3,
                     },
                 ),
-                preset("Rời máy thì khoá", Action::Lock, Trigger::Idle { minutes: 10 }),
+                preset(
+                    "Khoá sau 10 phút không hoạt động",
+                    Action::Lock,
+                    Trigger::Idle { minutes: 10 },
+                ),
             ],
             schedules: vec![Schedule {
                 id: new_id(),
@@ -130,6 +151,8 @@ impl Default for Data {
             history: Vec::new(),
             job: None,
             draft: serde_json::json!({ "action": "shutdown", "trigger": { "type": "countdown", "seconds": 3600 } }),
+            mix_presets: Vec::new(),
+            custom_tracks: Vec::new(),
         }
     }
 }

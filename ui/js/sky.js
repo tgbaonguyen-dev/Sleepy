@@ -1,102 +1,189 @@
-// Bầu trời đầy sao cho giao diện tối: dải Ngân Hà, sao lấp lánh, thỉnh thoảng có sao băng.
+// Animated night sky optimized for native high-FPS rendering on WebKitGTK:
+// pre-rendered sprites for nebulae & star glows, capped canvas DPR, and visibility pause.
 (() => {
-  const cv = document.getElementById('sky');
-  if (!cv) return;
-  const ctx = cv.getContext('2d');
+  const canvas = document.getElementById('sky');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d', { alpha: true });
   const reduce = matchMedia('(prefers-reduced-motion: reduce)');
-  const rnd = (a, b) => a + Math.random() * (b - a);
-  const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
-  const TINTS = ['255,255,255', '255,255,255', '214,224,255', '190,205,255', '255,236,214'];
-  let W, H, dpr, stars = [], band = null, shoot = null, nextShoot = 0, raf = 0, last = 0, on = false;
+  const rnd = (min, max) => min + Math.random() * (max - min);
+  const gaussian = () => (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
+  const colors = ['255,255,255', '219,227,255', '181,200,255', '255,226,200'];
+  const nebulaColors = ['105,126,235', '117,91,204', '54,139,206', '176,104,190'];
 
-  function build() {
-    dpr = Math.min(2, window.devicePixelRatio || 1);
-    W = window.innerWidth; H = window.innerHeight;
-    cv.width = W * dpr; cv.height = H * dpr;
-    cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  let width = 0, height = 0, dpr = 1;
+  let stars = [], nebulae = [], milkyWay = null, meteor = null;
+  let nextMeteor = 0, frameId = 0, active = false;
+  const pointer = { x: 0, y: 0, targetX: 0, targetY: 0 };
 
-    band = document.createElement('canvas');
-    band.width = cv.width; band.height = cv.height;
-    const m = band.getContext('2d');
-    m.scale(dpr, dpr);
-    m.save();
-    m.translate(W * 0.46, H * 0.58);
-    m.rotate(-0.62);
-    const L = Math.hypot(W, H) * 0.7;
-    for (let i = 0; i < 110; i++) {
-      const x = rnd(-L, L), y = gauss() * H * 0.11, r = rnd(50, 160), a = rnd(0.012, 0.04);
-      const g = m.createRadialGradient(x, y, 0, x, y, r);
-      g.addColorStop(0, `rgba(176,190,255,${a})`); g.addColorStop(1, 'rgba(176,190,255,0)');
-      m.fillStyle = g; m.fillRect(x - r, y - r, r * 2, r * 2);
-    }
-    for (let i = 0; i < 40; i++) {
-      const x = rnd(-L, L), y = gauss() * H * 0.03, r = rnd(30, 90);
-      const g = m.createRadialGradient(x, y, 0, x, y, r);
-      g.addColorStop(0, 'rgba(5,8,20,.10)'); g.addColorStop(1, 'rgba(5,8,20,0)');
-      m.fillStyle = g; m.fillRect(x - r, y - r, r * 2, r * 2);
-    }
-    const dust = Math.round((W * H) / 520);
-    for (let i = 0; i < dust; i++) {
-      const s = rnd(0.35, 0.95);
-      m.fillStyle = `rgba(230,236,255,${rnd(0.06, 0.42)})`;
-      m.fillRect(rnd(-L, L), gauss() * H * 0.1, s, s);
-    }
-    m.restore();
-
-    const n = Math.round((W * H) / 2300);
-    stars = Array.from({ length: n }, () => {
-      const big = Math.random() < 0.05;
-      return { x: Math.random() * W, y: Math.random() * H, r: big ? rnd(1, 1.6) : rnd(0.3, 0.95), a: rnd(0.3, 0.95),
-        tw: rnd(0.3, 1.5), ph: Math.random() * 6.28, c: TINTS[(Math.random() * TINTS.length) | 0], big };
-    });
+  function makeRadialSprite(size, stops) {
+    const c = document.createElement('canvas');
+    c.width = size; c.height = size;
+    const g = c.getContext('2d');
+    const r = size / 2;
+    const grad = g.createRadialGradient(r, r, 0, r, r, r);
+    for (const [offset, color] of stops) grad.addColorStop(offset, color);
+    g.fillStyle = grad;
+    g.fillRect(0, 0, size, size);
+    return c;
   }
 
-  function drawShoot(t) {
-    if (!shoot) {
-      if (t > nextShoot && !reduce.matches) {
-        shoot = { x: rnd(W * 0.3, W * 1.05), y: rnd(-20, H * 0.35), vx: -rnd(520, 760), vy: rnd(210, 320), t0: t, life: rnd(700, 1100) };
+  const nebulaSprites = nebulaColors.map((rgb) => makeRadialSprite(128, [
+    [0, `rgba(${rgb},1)`],
+    [0.42, `rgba(${rgb},0.45)`],
+    [1, `rgba(${rgb},0)`],
+  ]));
+  const starGlowSprites = colors.map((rgb) => makeRadialSprite(32, [
+    [0, `rgba(${rgb},0.55)`],
+    [1, `rgba(${rgb},0)`],
+  ]));
+
+  function buildMilkyWay() {
+    const layer = document.createElement('canvas');
+    layer.width = canvas.width; layer.height = canvas.height;
+    const paint = layer.getContext('2d');
+    paint.scale(dpr, dpr);
+    paint.save();
+    paint.translate(width * 0.48, height * 0.58);
+    paint.rotate(-0.62);
+    const length = Math.hypot(width, height) * 0.82;
+    for (let i = 0; i < 120; i++) {
+      const x = rnd(-length, length), y = gaussian() * height * 0.12, radius = rnd(55, 190), opacity = rnd(0.012, 0.045);
+      const gradient = paint.createRadialGradient(x, y, 0, x, y, radius);
+      gradient.addColorStop(0, `rgba(156,177,255,${opacity})`);
+      gradient.addColorStop(0.45, `rgba(116,135,220,${opacity * 0.55})`);
+      gradient.addColorStop(1, 'rgba(88,103,190,0)');
+      paint.fillStyle = gradient;
+      paint.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+    }
+    const dustCount = Math.min(1800, Math.round((width * height) / 420));
+    for (let i = 0; i < dustCount; i++) {
+      const size = rnd(0.35, 1.05);
+      paint.fillStyle = `rgba(224,232,255,${rnd(0.05, 0.42)})`;
+      paint.fillRect(rnd(-length, length), gaussian() * height * 0.115, size, size);
+    }
+    paint.restore();
+    return layer;
+  }
+
+  function build() {
+    dpr = Math.min(1.25, window.devicePixelRatio || 1);
+    width = window.innerWidth; height = window.innerHeight;
+    canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr);
+    canvas.style.width = `${width}px`; canvas.style.height = `${height}px`;
+    milkyWay = buildMilkyWay();
+    const starCount = Math.min(320, Math.round((width * height) / 2400));
+    stars = Array.from({ length: starCount }, () => {
+      const depth = rnd(0.18, 1), bright = Math.random() < 0.07;
+      const colorIdx = Math.floor(Math.random() * colors.length);
+      return {
+        x: rnd(0, width), y: rnd(0, height), depth,
+        size: bright ? rnd(2.1, 3.2) : rnd(0.9, 1.9),
+        opacity: rnd(0.28, 0.92), pulse: rnd(0.55, 1.55), phase: rnd(0, Math.PI * 2),
+        color: colors[colorIdx], glow: starGlowSprites[colorIdx], bright,
+      };
+    });
+    nebulae = Array.from({ length: 5 }, (_, index) => ({
+      x: rnd(width * 0.08, width * 0.92), y: rnd(height * 0.08, height * 0.92),
+      radius: rnd(Math.min(width, height) * 0.22, Math.min(width, height) * 0.42),
+      phase: rnd(0, Math.PI * 2), speed: rnd(0.045, 0.09), opacity: rnd(0.03, 0.068),
+      sprite: nebulaSprites[index % nebulaSprites.length],
+    }));
+  }
+
+  function drawNebulae(seconds) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    for (const cloud of nebulae) {
+      const x = cloud.x + Math.sin(seconds * cloud.speed + cloud.phase) * 34 + pointer.x * 5;
+      const y = cloud.y + Math.cos(seconds * cloud.speed * 0.78 + cloud.phase) * 24 + pointer.y * 4;
+      const radius = cloud.radius * (1 + Math.sin(seconds * cloud.speed * 1.4 + cloud.phase) * 0.06);
+      ctx.globalAlpha = cloud.opacity;
+      ctx.drawImage(cloud.sprite, x - radius, y - radius, radius * 2, radius * 2);
+    }
+    ctx.restore();
+  }
+
+  function drawStars(seconds) {
+    const cameraX = Math.sin(seconds * 0.11) * 13 + Math.cos(seconds * 0.047) * 7 + pointer.x * 9;
+    const cameraY = Math.cos(seconds * 0.085) * 9 + pointer.y * 7;
+    for (const star of stars) {
+      const x = (star.x + seconds * (0.14 + star.depth * 0.42) + cameraX * star.depth + width) % width;
+      const y = (star.y + cameraY * star.depth + height) % height;
+      const opacity = star.opacity * (0.64 + 0.36 * Math.sin(seconds * star.pulse + star.phase));
+      if (star.bright) {
+        const gSize = star.size * 5.5;
+        ctx.globalAlpha = opacity;
+        ctx.drawImage(star.glow, x - gSize, y - gSize, gSize * 2, gSize * 2);
+      }
+      ctx.globalAlpha = opacity;
+      ctx.fillStyle = `rgb(${star.color})`;
+      const half = star.size * 0.5;
+      ctx.fillRect(x - half, y - half, star.size, star.size);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawMeteor(time) {
+    if (!meteor) {
+      if (time >= nextMeteor && !reduce.matches) {
+        meteor = {
+          x: rnd(width * 0.38, width * 1.05), y: rnd(-30, height * 0.28),
+          vx: -rnd(460, 660), vy: rnd(190, 270), started: time, duration: rnd(900, 1300),
+        };
       }
       return;
     }
-    const k = (t - shoot.t0) / shoot.life;
-    if (k >= 1) { shoot = null; nextShoot = t + rnd(7000, 16000); return; }
-    const s = (t - shoot.t0) / 1000, x = shoot.x + shoot.vx * s, y = shoot.y + shoot.vy * s;
-    const len = 0.16, tx = x - shoot.vx * len, ty = y - shoot.vy * len;
-    const fade = Math.sin(Math.PI * k);
-    const g = ctx.createLinearGradient(x, y, tx, ty);
-    g.addColorStop(0, `rgba(255,255,255,${0.9 * fade})`); g.addColorStop(1, 'rgba(180,195,255,0)');
-    ctx.strokeStyle = g; ctx.lineWidth = 1.4; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(tx, ty); ctx.stroke();
+    const progress = (time - meteor.started) / meteor.duration;
+    if (progress >= 1) { meteor = null; nextMeteor = time + rnd(8000, 15000); return; }
+    const elapsed = (time - meteor.started) / 1000;
+    const x = meteor.x + meteor.vx * elapsed, y = meteor.y + meteor.vy * elapsed;
+    const tailX = x - meteor.vx * 0.19, tailY = y - meteor.vy * 0.19, fade = Math.sin(Math.PI * progress);
+    const gradient = ctx.createLinearGradient(x, y, tailX, tailY);
+    gradient.addColorStop(0, `rgba(255,255,255,${0.9 * fade})`);
+    gradient.addColorStop(0.18, `rgba(202,218,255,${0.58 * fade})`);
+    gradient.addColorStop(1, 'rgba(158,181,255,0)');
+    ctx.strokeStyle = gradient; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(tailX, tailY); ctx.stroke();
   }
 
-  function frame(t) {
-    raf = requestAnimationFrame(frame);
-    if (t - last < 45) return;
-    last = t;
+  function draw(time) {
+    const seconds = time / 1000;
+    pointer.x += (pointer.targetX - pointer.x) * 0.045;
+    pointer.y += (pointer.targetY - pointer.y) * 0.045;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, W, H);
-    ctx.drawImage(band, 0, 0, W, H);
-    const sec = reduce.matches ? 0 : t / 1000;
-    for (const s of stars) {
-      const a = s.a * (0.7 + 0.3 * Math.sin(sec * s.tw + s.ph));
-      if (s.big) {
-        const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r * 5);
-        g.addColorStop(0, `rgba(${s.c},${a * 0.45})`); g.addColorStop(1, `rgba(${s.c},0)`);
-        ctx.fillStyle = g; ctx.fillRect(s.x - s.r * 5, s.y - s.r * 5, s.r * 10, s.r * 10);
-      }
-      ctx.fillStyle = `rgba(${s.c},${a})`;
-      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 6.2832); ctx.fill();
-    }
-    drawShoot(t);
+    ctx.clearRect(0, 0, width, height);
+    drawNebulae(seconds);
+    const bandX = Math.sin(seconds * 0.075) * 15 + pointer.x * 7;
+    const bandY = Math.cos(seconds * 0.058) * 10 + pointer.y * 5;
+    ctx.drawImage(milkyWay, -12 + bandX, -12 + bandY, width + 24, height + 24);
+    drawStars(seconds);
+    drawMeteor(time);
   }
 
-  function sync() {
-    const dark = document.documentElement.dataset.theme !== 'light';
-    if (dark && !on) { on = true; build(); nextShoot = performance.now() + rnd(3000, 8000); raf = requestAnimationFrame(frame); cv.style.display = ''; }
-    else if (!dark && on) { on = false; cancelAnimationFrame(raf); ctx.clearRect(0, 0, cv.width, cv.height); cv.style.display = 'none'; }
+  function frame(time) {
+    if (!active || document.hidden) return;
+    frameId = requestAnimationFrame(frame);
+    draw(time);
   }
-  new MutationObserver(sync).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-  window.addEventListener('resize', () => { if (on) build(); });
-  document.addEventListener('visibilitychange', () => { if (!on) return; if (document.hidden) cancelAnimationFrame(raf); else raf = requestAnimationFrame(frame); });
-  sync();
+  function start() {
+    build();
+    nextMeteor = performance.now() + rnd(3000, 6500);
+    canvas.style.display = '';
+    active = true;
+    if (reduce.matches) draw(performance.now());
+    else frameId = requestAnimationFrame(frame);
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (!active) return;
+    if (document.hidden) cancelAnimationFrame(frameId);
+    else if (!reduce.matches) frameId = requestAnimationFrame(frame);
+  });
+  window.addEventListener('resize', () => { if (active) build(); });
+  window.addEventListener('pointermove', (event) => {
+    pointer.targetX = event.clientX / Math.max(1, width) - 0.5;
+    pointer.targetY = event.clientY / Math.max(1, height) - 0.5;
+  });
+  document.addEventListener('mouseleave', () => { pointer.targetX = 0; pointer.targetY = 0; });
+  reduce.addEventListener('change', () => { if (active) { cancelAnimationFrame(frameId); start(); } });
+  start();
 })();
